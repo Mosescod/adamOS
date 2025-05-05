@@ -1,0 +1,97 @@
+/* NoahQ - Retro-Future Security Console */
+.noahq-container {
+    background: rgba(10, 10, 18, 0.7);
+    border: 1px solid var(--accent);
+    box-shadow: 0 0 30px rgba(177, 69, 250, 0.2),
+                inset 0 0 20px rgba(177, 69, 250, 0.1);
+    position: relative;
+}
+
+.noahq-container::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(
+        to right,
+        transparent,
+        var(--accent),
+        transparent
+    );
+}
+
+.noahq-header h1 {
+    font-family: var(--font-alt);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    position: relative;
+    display: inline-block;
+}
+
+.noahq-header h1::after {
+    content: "";
+    position: absolute;
+    bottom: -10px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(
+        to right,
+        var(--primary),
+        var(--accent)
+    );
+}
+
+/* Retro-Future Form Elements */
+.form-control {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--text-secondary);
+    color: var(--text-primary);
+    font-family: var(--font-main);
+    padding: 12px 15px;
+    transition: all 0.3s;
+}
+
+.form-control:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+    background: rgba(0, 0, 0, 0.5);
+}
+
+/* Security Status Lights */
+.status-light {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+    box-shadow: 0 0 5px currentColor;
+}
+
+/* Status light animation */
+@keyframes pulse {
+    0% { opacity: 0.6; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.05); }
+    100% { opacity: 0.6; transform: scale(1); }
+}
+
+.console-output {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--primary);
+    height: 300px;
+    overflow-y: auto;
+    padding: 15px;
+    font-family: var(--font-main);
+    line-height: 1.4;
+}
+
+.console-output p {
+    margin: 5px 0;
+    color: var(--text-primary);
+}
+
+.status-ok { background: #00ff88; animation: pulse 2s infinite; }
+.status-warn { background: #ffbd2e; animation: pulse 1s infinite; }
+.status-alert { background: #ff4757; animation: pulse 0.5s infinite; }

@@ -1,0 +1,183 @@
+/* vintage-futurism.css - Core Styles */
+:root {
+    /* Cyberpunk Color Palette */
+    --primary: #00f0ff;
+    --primary-dark: #008c96;
+    --bg-dark: #0a0a12;
+    --bg-darker: #050508;
+    --text-primary: #e0e0ff;
+    --text-secondary: #a0a0c0;
+    --accent: #ff38a8;
+    --accent-dark: #b145fa;
+    --error: #ff4757;
+    --success: #00ff88;
+    --warning: #ffbd2e;
+    
+    /* Typography */
+    --font-main: 'Courier New', monospace;
+    --font-alt: 'Share Tech Mono', monospace;
+}
+
+/* CRT Base Effects */
+body {
+    font-family: var(--font-main);
+    background-color: var(--bg-darker);
+    color: var(--text-primary);
+    line-height: 1.5;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    position: relative;
+    min-height: 100vh;
+}
+
+/* CRT Scanlines */
+.crt-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: 
+        linear-gradient(rgba(0, 240, 255, 0.03) 0%, transparent 3px),
+        linear-gradient(90deg, rgba(0, 240, 255, 0.01) 0%, transparent 1px);
+    background-size: 100% 4px, 4px 100%;
+    pointer-events: none;
+    z-index: 9999;
+    animation: flicker 0.15s infinite alternate;
+}
+
+@keyframes flicker {
+    0% { opacity: 0.8; }
+    5% { opacity: 0.85; }
+    10% { opacity: 0.7; }
+    15% { opacity: 0.9; }
+    20% { opacity: 0.75; }
+    100% { opacity: 0.9; }
+}
+
+/* Main Container */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+    position: relative;
+    z-index: 1;
+}
+
+/* Terminal Elements */
+.terminal-frame {
+    background: rgba(10, 10, 18, 0.8);
+    border: 1px solid var(--primary);
+    box-shadow: 0 0 30px rgba(0, 240, 255, 0.2),
+                inset 0 0 20px rgba(0, 240, 255, 0.1);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.terminal-divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--primary), transparent);
+    margin: 1.5rem 0;
+}
+
+/* Status Lights */
+.status-lights {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.status-light {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    box-shadow: 0 0 5px currentColor;
+}
+
+.status-ok { background: var(--success); animation: pulse 2s infinite; }
+.status-warn { background: var(--warning); animation: pulse 1s infinite; }
+.status-alert { background: var(--error); animation: pulse 0.5s infinite; }
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.1); }
+}
+
+/* Footer */
+.footer {
+    text-align: center;
+    padding: 1rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Add these to vintage-futurism.css */
+.btn-holo {
+    background: rgba(0, 240, 255, 0.1);
+    border: 1px solid var(--primary);
+    color: var(--text-primary);
+    padding: 10px 20px;
+    font-family: var(--font-alt);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-holo:hover {
+    background: rgba(0, 240, 255, 0.2);
+    box-shadow: 0 0 15px var(--primary);
+    transform: translateY(-2px);
+}
+
+.btn-holo::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(
+        to bottom right,
+        rgba(0, 240, 255, 0),
+        rgba(0, 240, 255, 0.3),
+        rgba(0, 240, 255, 0)
+    );
+    transform: rotate(30deg);
+    animation: holo-glow 3s infinite linear;
+}
+
+@keyframes holo-glow {
+    0% { transform: rotate(30deg) translate(-30%, -30%); }
+    100% { transform: rotate(30deg) translate(30%, 30%); }
+}
+
+/* Input fields */
+input, select, textarea {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--text-secondary);
+    color: var(--text-primary);
+    padding: 10px 15px;
+    font-family: var(--font-main);
+    transition: all 0.3s;
+}
+
+input:focus, select:focus, textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+    outline: none;
+}
+
+/* Active state for navigation */
+.nav-item.active {
+    background: rgba(0, 240, 255, 0.2);
+    box-shadow: 0 0 10px var(--primary);
+    border-color: var(--primary);
+}

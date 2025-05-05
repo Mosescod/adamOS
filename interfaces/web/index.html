@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADAM AIOS - Self-learning AI agent with Sage personality</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #00f0ff;
+            --primary-dark: #00a8b5;
+            --bg-dark: #0a0a12;
+            --bg-darker: #050508;
+            --text-primary: #e0e0ff;
+            --text-secondary: #a0a0c0;
+            --accent: #b145fa;
+            --scroll-color: #00ff88;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Courier New', monospace;
+            background-color: var(--bg-darker);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: url('/static/images/loop-humanoid-digital.gif') center/cover no-repeat;
+            opacity: 0.15;
+            transition: transform 0.1s linear;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .title {
+            font-size: 4rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            background: linear-gradient(to right, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            margin-bottom: 3rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+        }
+
+        .button-container {
+            display: flex;
+            gap: 2rem;
+            margin-top: 2rem;
+            position: relative;
+            z-index: 1;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .action-button {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            border: 2px solid rgba(0, 240, 255, 0.3);
+            background: rgba(10, 10, 18, 0.7);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.1);
+        }
+
+        .action-button:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0 30px rgba(0, 240, 255, 0.3);
+            border-color: var(--primary);
+        }
+
+        .action-button i {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            transition: transform 0.3s ease;
+        }
+
+        .action-button .label {
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        #github-button {
+            color: #ffffff;
+        }
+
+        #adam-button {
+            color: var(--primary);
+        }
+
+        #noahq-button {
+            color: var(--accent);
+        }
+
+        #scroll-button {
+            color: var(--scroll-color);
+        }
+
+        .footer {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        .particle {
+            position: absolute;
+            background-color: var(--primary);
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: float 15s infinite linear;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0) rotate(0deg);
+                opacity: 0.3;
+            }
+            50% {
+                opacity: 0.1;
+            }
+            100% {
+                transform: translateY(-100vh) rotate(360deg);
+                opacity: 0.3;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="background" id="background"></div>
+    
+    <!-- Background Music (autoplay) -->
+    <audio id="bg-music" loop autoplay>
+        <source src="/static/sounds/relaxing-music.mp3">
+    </audio>
+    
+    <!-- Particle Effects -->
+    <div class="particles" id="particles"></div>
+
+    <!-- Main Content -->
+    <div class="container">
+        <h1 class="title">ADAM AIOS</h1>
+        <p class="subtitle">Self-learning AI agent with Sage personality</p>
+        
+        <div class="button-container">
+            <a href="https://github.com/Mosescod/adam" class="action-button" id="github-button" target="_blank">
+                <i class="fab fa-github"></i>
+                <span class="label">GitHub</span>
+            </a>
+            
+            <a href="/adam" class="action-button" id="adam-button">
+                <i class="fas fa-brain"></i>
+                <span class="label">Adam</span>
+            </a>
+            
+            <a href="/noahq" class="action-button" id="noahq-button">
+                <i class="fas fa-rocket"></i>
+                <span class="label">Noah Q</span>
+            </a>
+            
+            <a href="/docs" class="action-button" id="scroll-button">
+                <i class="fas fa-scroll"></i>
+                <span class="label">Scroll</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        Adam Operating System - Adaptable AI Agent
+    </div>
+
+    <script>
+        // Create particle effects
+        function createParticles() {
+            const particlesContainer = document.getElementById('particles');
+            const particleCount = 30;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.classList.add('particle');
+                
+                // Random properties
+                const size = Math.random() * 10 + 5;
+                const posX = Math.random() * 100;
+                const duration = Math.random() * 20 + 10;
+                const delay = Math.random() * -20;
+                
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+                particle.style.left = `${posX}%`;
+                particle.style.animationDuration = `${duration}s`;
+                particle.style.animationDelay = `${delay}s`;
+                
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        // Parallax background effect
+        function setupParallax() {
+            const background = document.getElementById('background');
+            document.addEventListener('mousemove', (e) => {
+                const x = e.clientX / window.innerWidth;
+                const y = e.clientY / window.innerHeight;
+                background.style.transform = `translate(-${x * 10}px, -${y * 10}px)`;
+            });
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            createParticles();
+            setupParallax();
+            
+            // Add hover effects to buttons
+            const buttons = document.querySelectorAll('.action-button');
+            buttons.forEach(button => {
+                button.addEventListener('mouseenter', () => {
+                    const icon = button.querySelector('i');
+                    icon.style.transform = 'scale(1.2)';
+                    icon.style.transition = 'transform 0.3s ease';
+                });
+                
+                button.addEventListener('mouseleave', () => {
+                    const icon = button.querySelector('i');
+                    icon.style.transform = 'scale(1)';
+                });
+            });
+
+            // Ensure music plays (may require user interaction on some browsers)
+            document.addEventListener('click', () => {
+                const music = document.getElementById('bg-music');
+                if (music.paused) {
+                    music.play().catch(e => console.log('Autoplay prevented:', e));
+                }
+            }, { once: true });
+            
+            // Scroll functionality
+            const scrollButton = document.getElementById('scroll-button');
+            scrollButton.addEventListener('click', (e) => {
+                if (window.location.hash === '#scroll') {
+                    e.preventDefault();
+                    window.scrollTo({
+                        top: document.body.scrollHeight,
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
