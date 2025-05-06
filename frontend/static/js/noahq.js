@@ -1,69 +1,32 @@
-// noahq.js - Complete implementation
 document.addEventListener('DOMContentLoaded', () => {
-    const consoleOutput = document.getElementById('console-output');
-    const noahqForm = document.getElementById('noahq-form');
-    const queryType = document.getElementById('query-type');
+    const securityForm = document.getElementById('security-form');
+    const securityLog = document.getElementById('security-log');
     
-    // Security console functionality
-    const setupSecurityConsole = () => {
-        displaySystemMessage("NOAH-Q SECURITY SUBSYSTEM INITIALIZED");
-        displaySystemMessage("RUNNING DIAGNOSTICS...");
-        displaySystemMessage("ALL SYSTEMS NOMINAL");
-        displaySystemMessage("READY FOR SECURITY QUERIES");
+    securityForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        addLogEntry("Security query initiated...");
         
-        noahqForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            
-            const type = queryType.value;
-            if (!type) {
-                displayWarning("QUERY TYPE REQUIRED");
-                return;
-            }
-            
-            displaySystemMessage(`PROCESSING ${type.toUpperCase()} QUERY...`);
-            
-            // Simulate processing
-            setTimeout(() => {
-                const responses = {
-                    security: "SECURITY ANALYSIS COMPLETE. NO CRITICAL VULNERABILITIES DETECTED.",
-                    ethical: "ETHICAL REVIEW CONCLUDED. ALL SYSTEMS WITHIN ESTABLISHED PARAMETERS.",
-                    system: "SYSTEM DIAGNOSTIC COMPLETE. ALL COMPONENTS FUNCTIONING OPTIMALLY."
-                };
-                
-                displaySystemMessage(responses[type]);
-            }, 2000);
-        });
-    };
+        setTimeout(() => {
+            addLogEntry("Query completed. No issues found.");
+        }, 1500);
+    });
     
-    const displaySystemMessage = (text) => {
-        const message = document.createElement('p');
-        message.innerHTML = `&gt; ${text}`;
-        consoleOutput.appendChild(message);
-        consoleOutput.scrollTop = consoleOutput.scrollHeight;
-    };
+    function addLogEntry(message) {
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        entry.textContent = `> ${message}`;
+        securityLog.appendChild(entry);
+        securityLog.scrollTop = securityLog.scrollHeight;
+    }
     
-    const displayWarning = (text) => {
-        const warning = document.createElement('p');
-        warning.className = 'warning';
-        warning.innerHTML = `! ${text} !`;
-        consoleOutput.appendChild(warning);
-        consoleOutput.scrollTop = consoleOutput.scrollHeight;
-    };
-
-    // Status monitoring
-    const monitorStatus = () => {
-        // Randomly change status lights for visual effect
-        setInterval(() => {
-            const lights = document.querySelectorAll('.status-light');
-            lights.forEach(light => {
-                if (Math.random() > 0.9) {
-                    light.classList.toggle('status-alert');
-                    light.classList.toggle('status-ok');
-                }
-            });
-        }, 3000);
-    };
-
-    setupSecurityConsole();
-    monitorStatus();
+    // Simulate periodic status updates
+    setInterval(() => {
+        const messages = [
+            "System check completed",
+            "Memory scan clean",
+            "Ethical protocols verified"
+        ];
+        const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+        addLogEntry(randomMessage);
+    }, 10000);
 });

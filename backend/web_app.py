@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from main import AdamAI
-from core.knowledge.mongo_db import MongoDB  # or QuranDatabase
+from core.knowledge.quran_db import QuranDatabase
 import logging
 import os
 
@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize AdamAI without any interactive elements
-adam = AdamAI(quran_db=MongoDB(), user_id=os.getenv("USER_ID", "web_user"))
+adam = AdamAI(quran_db=QuranDatabase, user_id=os.getenv("USER_ID", "web_user"))
 
 @app.route('/api/query', methods=['POST'])
 def handle_query():
@@ -28,4 +28,4 @@ def handle_query():
         return jsonify({"error": "Internal server error"}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=8000)

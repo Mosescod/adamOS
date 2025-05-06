@@ -3,550 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ADAM AIOS - Documentation</title>
-    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <title>ADAM AI - Documentation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../static/css/vintage-futurism.css">
     <link rel="stylesheet" href="../static/css/docs.css">
-    <style>
-        /* Enhanced CRT effects */
-        .crt-overlay {
-            background: 
-                linear-gradient(rgba(18, 16, 16, 0.1) 50%, 
-                rgba(0, 0, 0, 0.25) 50%),
-                linear-gradient(90deg, rgba(255, 0, 0, 0.06), 
-                rgba(0, 255, 0, 0.02), 
-                rgba(0, 0, 255, 0.06));
-            background-size: 100% 2px, 3px 100%;
-            animation: flicker 0.15s infinite alternate;
-        }
-        
-        @keyframes flicker {
-            0% { opacity: 0.8; }
-            5% { opacity: 0.85; }
-            10% { opacity: 0.7; }
-            15% { opacity: 0.9; }
-            20% { opacity: 0.75; }
-            100% { opacity: 0.9; }
-        }
-        
-        /* Documentation container */
-        .docs-container {
-            background: rgba(10, 10, 18, 0.7);
-            border: 1px solid var(--primary);
-            box-shadow: 0 0 30px rgba(0, 240, 255, 0.2),
-                        inset 0 0 20px rgba(0, 240, 255, 0.1);
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .docs-container::before {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: 
-                linear-gradient(
-                    rgba(0, 240, 255, 0.05) 0.1em, 
-                    transparent 0.1em
-                );
-            background-size: 100% 0.2em;
-            pointer-events: none;
-            z-index: 0;
-        }
-        
-        .docs-container::after {
-            content: "CONFIDENTIAL - PROPERTY OF ADAM AIOS";
-            position: absolute;
-            bottom: -25px;
-            right: 0;
-            font-size: 0.7rem;
-            color: var(--text-secondary);
-            opacity: 0.7;
-        }
-        
-        /* Documentation navigation */
-        .docs-nav {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        
-        .nav-item {
-            flex: 1 1 200px;
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid var(--text-secondary);
-            color: var(--text-primary);
-            padding: 12px 15px;
-            font-family: var(--font-alt);
-            letter-spacing: 1px;
-            text-align: left;
-            cursor: pointer;
-            transition: all 0.3s;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .nav-item:hover {
-            border-color: var(--primary);
-            box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
-        }
-        
-        .nav-item.active {
-            background: rgba(0, 240, 255, 0.1);
-            border-color: var(--primary);
-            box-shadow: 0 0 15px var(--primary);
-        }
-        
-        .nav-item i {
-            margin-right: 10px;
-            color: var(--primary);
-        }
-        
-        /* Documentation content */
-        .docs-section {
-            padding: 20px;
-            position: relative;
-            z-index: 1;
-        }
-        
-        .docs-section h1 {
-            font-family: var(--font-alt);
-            letter-spacing: 2px;
-            color: var(--primary);
-            margin-bottom: 20px;
-            position: relative;
-        }
-        
-        .docs-section h1::after {
-            content: "";
-            position: absolute;
-            bottom: -10px;
-            left: 0;
-            width: 100%;
-            height: 1px;
-            background: linear-gradient(
-                to right,
-                var(--primary),
-                transparent
-            );
-        }
-        
-        .docs-section h2 {
-            font-family: var(--font-alt);
-            letter-spacing: 1px;
-            color: var(--primary);
-            margin: 25px 0 15px 0;
-            padding-left: 15px;
-            position: relative;
-        }
-        
-        .docs-section h2::before {
-            content: ">";
-            position: absolute;
-            left: 0;
-            color: var(--accent);
-        }
-        
-        .docs-section p {
-            margin-bottom: 15px;
-            line-height: 1.6;
-        }
-        
-        .terminal-divider {
-            height: 1px;
-            background: linear-gradient(to right, transparent, var(--primary), transparent);
-            margin: 1.5rem 0;
-        }
-        
-        /* Enhanced code blocks */
-        .code-block {
-            background: rgba(0, 0, 0, 0.5);
-            border-left: 3px solid var(--accent);
-            padding: 15px;
-            margin: 20px 0;
-            position: relative;
-            overflow-x: auto;
-            font-family: var(--font-main);
-        }
-        
-        .code-block::before {
-            content: "DEBUG CONSOLE";
-            position: absolute;
-            top: 0;
-            right: 0;
-            background: var(--accent);
-            color: black;
-            font-size: 0.7rem;
-            padding: 2px 5px;
-            font-family: var(--font-alt);
-        }
-        
-        .code-line {
-            display: flex;
-            margin: 3px 0;
-        }
-        
-        .line-number {
-            color: var(--text-secondary);
-            margin-right: 15px;
-            user-select: none;
-            opacity: 0.7;
-        }
-        
-        .line-content {
-            flex: 1;
-        }
-        
-        .copy-btn {
-            position: absolute;
-            top: 2px;
-            right: 2px;
-            background: rgba(0, 0, 0, 0.3);
-            border: none;
-            color: var(--text-primary);
-            padding: 3px 5px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .copy-btn:hover {
-            color: var(--primary);
-        }
-        
-        /* Warning and note boxes */
-        .warning {
-            background: rgba(255, 71, 87, 0.1);
-            border-left: 3px solid var(--error);
-            padding: 15px;
-            margin: 20px 0;
-            position: relative;
-        }
-        
-        .warning::before {
-            content: "! WARNING !";
-            position: absolute;
-            top: 0;
-            right: 0;
-            background: var(--error);
-            color: black;
-            font-size: 0.7rem;
-            padding: 2px 5px;
-            font-family: var(--font-alt);
-            letter-spacing: 1px;
-        }
-        
-        .note {
-            background: rgba(0, 240, 255, 0.1);
-            border-left: 3px solid var(--primary);
-            padding: 15px;
-            margin: 20px 0;
-            position: relative;
-        }
-        
-        .note::before {
-            content: "NOTE";
-            position: absolute;
-            top: 0;
-            right: 0;
-            background: var(--primary);
-            color: black;
-            font-size: 0.7rem;
-            padding: 2px 5px;
-            font-family: var(--font-alt);
-            letter-spacing: 1px;
-        }
-        
-        /* Responsive adjustments */
-        @media (max-width: 768px) {
-            .docs-nav {
-                flex-direction: column;
-            }
-            
-            .nav-item {
-                flex: 1 1 auto;
-            }
-        }
-    </style>
 </head>
 <body>
-    <!-- CRT Overlay Effect -->
-    <div class="crt-overlay"></div>
-    
-    <!-- Main Container -->
-    <div class="main-container">
-        <a href="../homepage" class="back-button btn-holo">
-            <i class="fas fa-arrow-left"></i> BACK TO TERMINAL
-        </a>
-        
-        <div class="docs-nav">
-            <button class="nav-item btn-holo active" data-target="intro">
-                <i class="fas fa-book-open"></i> INTRODUCTION
-            </button>
-            <button class="nav-item btn-holo" data-target="features">
-                <i class="fas fa-cogs"></i> FEATURES
-            </button>
-            <button class="nav-item btn-holo" data-target="getting-started">
-                <i class="fas fa-power-off"></i> GETTING STARTED
-            </button>
-            <button class="nav-item btn-holo" data-target="security">
-                <i class="fas fa-shield-alt"></i> SECURITY
-            </button>
-            <button class="nav-item btn-holo" data-target="api">
-                <i class="fas fa-code"></i> API REFERENCE
-            </button>
+    <div class="container">
+        <div class="header">
+            <div class="logo">ADAM AI</div>
+            <nav>
+                <a href="adam.html" class="nav-link">Chat</a>
+                <a href="noahq.html" class="nav-link">Security</a>
+                <a href="#" class="nav-link">Settings</a>
+            </nav>
         </div>
-        
+
         <div class="docs-container">
-            <!-- Introduction Section -->
-            <div class="docs-section" id="intro">
-                <h1 class="glow-text">ADAM AIOS DOCUMENTATION</h1>
-                <div class="terminal-divider"></div>
-                
-                <h2>INTRODUCTION</h2>
-                <p>ADAM AIOS is a self-learning artificial intelligence system designed to assist users with a wide range of tasks while maintaining a sage-like personality that provides thoughtful and considered responses.</p>
-                
-                <div class="code-block">
-                    <div class="code-line"><span class="line-number">1</span><span class="line-content">// System Initialization Sequence</span></div>
-                    <div class="line-number">2</span><span class="line-content">bootAdamAI {</span></div>
-                    <div class="code-line"><span class="line-number">3</span><span class="line-content">  personality: "Sage",</span></div>
-                    <div class="code-line"><span class="line-number">4</span><span class="line-content">  learningRate: 0.87,</span></div>
-                    <div class="code-line"><span class="line-number">5</span><span class="line-content">  ethicsProtocol: true,</span></div>
-                    <div class="code-line"><span class="line-number">6</span><span class="line-content">  version: "1.0.0"</span></div>
-                    <div class="code-line"><span class="line-number">7</span><span class="line-content">}</span></div>
-                    <button class="copy-btn"><i class="fas fa-copy"></i></button>
-                </div>
-                
-                <div class="note">
-                    <p>ADAM's personality matrix is built upon ethical guidelines that prioritize user safety and thoughtful interaction. The system will refuse to engage in harmful or unethical discussions.</p>
-                </div>
-                
-                <h2>SYSTEM ARCHITECTURE</h2>
-                <p>The ADAM AIOS consists of several core subsystems:</p>
-                
-                <div class="code-block">
-                    <div class="code-line"><span class="line-number">1</span><span class="line-content">ADAM_CORE {</span></div>
-                    <div class="code-line"><span class="line-number">2</span><span class="line-content">  NeuralMatrix: "Active",</span></div>
-                    <div class="code-line"><span class="line-number">3</span><span class="line-content">  PersonalityCores: ["Sage", "Assistant", "Counselor"],</span></div>
-                    <div class="code-line"><span class="line-number">4</span><span class="line-content">  Subsystems: [</span></div>
-                    <div class="code-line"><span class="line-number">5</span><span class="line-content">    "NOAH-Q Security",</span></div>
-                    <div class="code-line"><span class="line-number">6</span><span class="line-content">    "Memory Matrix",</span></div>
-                    <div class="code-line"><span class="line-number">7</span><span class="line-content">    "Learning Engine"</span></div>
-                    <div class="code-line"><span class="line-number">8</span><span class="line-content">  ]</span></div>
-                    <div class="code-line"><span class="line-number">9</span><span class="line-content">}</span></div>
-                    <button class="copy-btn"><i class="fas fa-copy"></i></button>
-                </div>
+            <div class="docs-nav">
+                <button class="nav-item active" data-target="intro">
+                    <i class="fas fa-book-open"></i> Introduction
+                </button>
+                <button class="nav-item" data-target="features">
+                    <i class="fas fa-cogs"></i> Features
+                </button>
+                <button class="nav-item" data-target="api">
+                    <i class="fas fa-code"></i> API
+                </button>
             </div>
             
-            <!-- Features Section (hidden by default) -->
-            <div class="docs-section" id="features" style="display:none;">
-                <h1>FEATURES</h1>
-                <div class="terminal-divider"></div>
-                
-                <h2>CORE CAPABILITIES</h2>
-                <p>ADAM AIOS provides the following primary features:</p>
-                
-                <div class="code-block">
-                    <div class="code-line"><span class="line-number">1</span><span class="line-content">FEATURES {</span></div>
-                    <div class="code-line"><span class="line-number">2</span><span class="line-content">  NaturalLanguageProcessing: true,</span></div>
-                    <div class="code-line"><span class="line-number">3</span><span class="line-content">  ContextualMemory: true,</span></div>
-                    <div class="code-line"><span class="line-number">4</span><span class="line-content">  AdaptiveLearning: true,</span></div>
-                    <div class="code-line"><span class="line-number">5</span><span class="line-content">  EthicalConstraints: true,</span></div>
-                    <div class="code-line"><span class="line-number">6</span><span class="line-content">  MultimodalOutput: true</span></div>
-                    <div class="code-line"><span class="line-number">7</span><span class="line-content">}</span></div>
-                    <button class="copy-btn"><i class="fas fa-copy"></i></button>
-                </div>
-                
-                <h2>PERSONALITY MATRIX</h2>
-                <p>The Sage personality profile emphasizes:</p>
-                <ul style="list-style-type: none; padding-left: 5px;">
-                    <li><span style="color: var(--primary);">></span> Thoughtful consideration</li>
-                    <li><span style="color: var(--primary);">></span> Balanced perspectives</li>
-                    <li><span style="color: var(--primary);">></span> Ethical reasoning</li>
-                    <li><span style="color: var(--primary);">></span> Knowledge sharing</li>
-                </ul>
-                
-                <div class="warning">
-                    <p>Attempting to modify core personality parameters may trigger NOAH-Q security protocols. Unauthorized access to system controls is strictly prohibited.</p>
-                </div>
-            </div>
-            
-            <!-- Getting Started Section (hidden by default) -->
-            <div class="docs-section" id="getting-started" style="display:none;">
-                <h1>GETTING STARTED</h1>
-                <div class="terminal-divider"></div>
-                
-                <h2>INITIALIZATION</h2>
-                <p>To begin interacting with ADAM:</p>
-                
-                <div class="code-block">
-                    <div class="code-line"><span class="line-number">1</span><span class="line-content">> connect adam --user=[USERNAME]</span></div>
-                    <div class="code-line"><span class="line-number">2</span><span class="line-content">> authentication required</span></div>
-                    <div class="code-line"><span class="line-number">3</span><span class="line-content">> enter security credentials</span></div>
-                    <div class="code-line"><span class="line-number">4</span><span class="line-content">> [••••••••]</span></div>
-                    <div class="code-line"><span class="line-number">5</span><span class="line-content">> connection established</span></div>
-                    <div class="code-line"><span class="line-number">6</span><span class="line-content">> welcome, [USERNAME]</span></div>
-                    <button class="copy-btn"><i class="fas fa-copy"></i></button>
-                </div>
-                
-                <div class="note">
-                    <p>First-time users will be guided through an initialization sequence to establish preferences and ethical boundaries.</p>
-                </div>
-                
-                <h2>BASIC COMMANDS</h2>
-                <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-                    <tr style="border-bottom: 1px solid var(--primary);">
-                        <th style="text-align: left; padding: 8px; color: var(--primary);">Command</th>
-                        <th style="text-align: left; padding: 8px; color: var(--primary);">Description</th>
-                    </tr>
-                    <tr style="border-bottom: 1px solid rgba(0, 240, 255, 0.2);">
-                        <td style="padding: 8px;">/query</td>
-                        <td style="padding: 8px;">Submit a question or request</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid rgba(0, 240, 255, 0.2);">
-                        <td style="padding: 8px;">/prefs</td>
-                        <td style="padding: 8px;">Adjust user preferences</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid rgba(0, 240, 255, 0.2);">
-                        <td style="padding: 8px;">/security</td>
-                        <td style="padding: 8px;">Access NOAH-Q security console</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid rgba(0, 240, 255, 0.2);">
-                        <td style="padding: 8px;">/exit</td>
-                        <td style="padding: 8px;">Terminate current session</td>
-                    </tr>
-                </table>
-            </div>
-            
-            <!-- Security Section (hidden by default) -->
-            <div class="docs-section" id="security" style="display:none;">
-                <h1>SECURITY PROTOCOLS</h1>
-                <div class="terminal-divider"></div>
-                
-                <h2>NOAH-Q SUBSYSTEM</h2>
-                <p>The NOAH-Q security subsystem monitors and protects all ADAM operations:</p>
-                
-                <div class="code-block">
-                    <div class="code-line"><span class="line-number">1</span><span class="line-content">NOAH-Q {</span></div>
-                    <div class="code-line"><span class="line-number">2</span><span class="line-content">  ThreatDetection: "Active",</span></div>
-                    <div class="code-line"><span class="line-number">3</span><span class="line-content">  EthicalBoundaries: "Enforced",</span></div>
-                    <div class="code-line"><span class="line-number">4</span><span class="line-content">  ResponseProtocols: [</span></div>
-                    <div class="code-line"><span class="line-number">5</span><span class="line-content">    "Isolation",</span></div>
-                    <div class="code-line"><span class="line-number">6</span><span class="line-content">    "Shutdown",</span></div>
-                    <div class="code-line"><span class="line-number">7</span><span class="line-content">    "MemoryPurge"</span></div>
-                    <div class="code-line"><span class="line-number">8</span><span class="line-content">  ]</span></div>
-                    <div class="code-line"><span class="line-number">9</span><span class="line-content">}</span></div>
-                    <button class="copy-btn"><i class="fas fa-copy"></i></button>
-                </div>
-                
-                <div class="warning">
-                    <p>NOAH-Q will automatically engage if it detects attempts to bypass ethical constraints or access restricted system functions.</p>
-                </div>
-                
-                <h2>SECURITY LAYERS</h2>
-                <div style="display: flex; flex-wrap: wrap; gap: 15px; margin: 20px 0;">
-                    <div style="flex: 1; min-width: 200px; background: rgba(0, 0, 0, 0.3); border-left: 3px solid var(--primary); padding: 15px;">
-                        <h3 style="color: var(--primary); margin-top: 0;">ENCRYPTION</h3>
-                        <p>All communications are encrypted using quantum-resistant algorithms</p>
-                    </div>
-                    <div style="flex: 1; min-width: 200px; background: rgba(0, 0, 0, 0.3); border-left: 3px solid var(--accent); padding: 15px;">
-                        <h3 style="color: var(--accent); margin-top: 0;">AUTHENTICATION</h3>
-                        <p>Multi-factor biometric verification required for sensitive operations</p>
-                    </div>
-                    <div style="flex: 1; min-width: 200px; background: rgba(0, 0, 0, 0.3); border-left: 3px solid var(--error); padding: 15px;">
-                        <h3 style="color: var(--error); margin-top: 0;">CONTAINMENT</h3>
-                        <p>Isolated neural networks prevent unauthorized knowledge transfer</p>
+            <div class="docs-content">
+                <div class="docs-section" id="intro">
+                    <h1>ADAM AI Documentation</h1>
+                    <p>ADAM is a self-learning artificial intelligence system designed to assist users with thoughtful, considered responses.</p>
+                    
+                    <div class="code-block">
+                        <pre>// System Initialization
+{
+  "version": "2.0",
+  "personality": "sage",
+  "ethics": "enabled"
+}</pre>
+                        <button class="copy-btn"><i class="fas fa-copy"></i></button>
                     </div>
                 </div>
-            </div>
-            
-            <!-- API Reference Section (hidden by default) -->
-            <div class="docs-section" id="api" style="display:none;">
-                <h1>API REFERENCE</h1>
-                <div class="terminal-divider"></div>
                 
-                <h2>ENDPOINTS</h2>
-                <p>ADAM provides the following API endpoints for authorized developers:</p>
-                
-                <div class="code-block">
-                    <div class="code-line"><span class="line-number">1</span><span class="line-content">BASE_URL = "https://api.adam-aios.net/v1"</span></div>
-                    <div class="code-line"><span class="line-number">2</span><span class="line-content">ENDPOINTS {</span></div>
-                    <div class="code-line"><span class="line-number">3</span><span class="line-content">  "/query": "POST - Submit user query",</span></div>
-                    <div class="code-line"><span class="line-number">4</span><span class="line-content">  "/memory": "GET - Access contextual memory",</span></div>
-                    <div class="code-line"><span class="line-number">5</span><span class="line-content">  "/prefs": "PUT - Update user preferences",</span></div>
-                    <div class="code-line"><span class="line-number">6</span><span class="line-content">  "/diagnostics": "GET - System status"</span></div>
-                    <div class="code-line"><span class="line-number">7</span><span class="line-content">}</span></div>
-                    <button class="copy-btn"><i class="fas fa-copy"></i></button>
+                <div class="docs-section" id="features" style="display:none;">
+                    <h1>Features</h1>
+                    <h2>Core Capabilities</h2>
+                    <ul class="feature-list">
+                        <li>Natural language understanding</li>
+                        <li>Contextual memory</li>
+                        <li>Ethical constraints</li>
+                        <li>Continuous learning</li>
+                    </ul>
                 </div>
                 
-                <h2>AUTHENTICATION</h2>
-                <p>All API requests require an authorization token:</p>
-                
-                <div class="code-block">
-                    <div class="code-line"><span class="line-number">1</span><span class="line-content">curl -X GET \</span></div>
-                    <div class="code-line"><span class="line-number">2</span><span class="line-content">  -H "Authorization: Bearer {API_KEY}" \</span></div>
-                    <div class="code-line"><span class="line-number">3</span><span class="line-content">  -H "Content-Type: application/json" \</span></div>
-                    <div class="code-line"><span class="line-number">4</span><span class="line-content">  "https://api.adam-aios.net/v1/diagnostics"</span></div>
-                    <button class="copy-btn"><i class="fas fa-copy"></i></button>
-                </div>
-                
-                <div class="warning">
-                    <p>API access requires security clearance level 3 or higher. Unauthorized access attempts will be logged and reported.</p>
+                <div class="docs-section" id="api" style="display:none;">
+                    <h1>API Reference</h1>
+                    <div class="code-block">
+                        <pre>POST /api/query
+{
+  "question": "Your question here",
+  "context": "Optional context"
+}</pre>
+                        <button class="copy-btn"><i class="fas fa-copy"></i></button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Footer -->
-    <div class="footer">
-        <div class="status-lights">
-            <span class="status-light status-ok"></span>
-            <span class="status-light status-warn"></span>
-            <span class="status-light status-alert"></span>
-        </div>
-        ADAM OPERATING SYSTEM - DOCUMENTATION v1.0
-    </div>
-
-    <!-- Scripts -->
     <script src="../static/js/docs.js"></script>
-    <script>
-        // Add sound effects
-        document.addEventListener('DOMContentLoaded', () => {
-            const navItems = document.querySelectorAll('.nav-item');
-            const clickSound = new Audio('../static/sounds/relaxing-music.mp3');
-            const copyButtons = document.querySelectorAll('.copy-btn');
-            const copySound = new Audio('../static/sounds/relaxing-music.mp3');
-            
-            clickSound.volume = 0.2;
-            copySound.volume = 0.3;
-            
-            navItems.forEach(item => {
-                item.addEventListener('click', () => {
-                    clickSound.currentTime = 0;
-                    clickSound.play();
-                });
-            });
-            
-            copyButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    copySound.currentTime = 0;
-                    copySound.play();
-                    
-                    // Change icon temporarily
-                    const icon = button.querySelector('i');
-                    icon.classList.remove('fa-copy');
-                    icon.classList.add('fa-check');
-                    
-                    setTimeout(() => {
-                        icon.classList.remove('fa-check');
-                        icon.classList.add('fa-copy');
-                    }, 2000);
-                });
-            });
-        });
-    </script>
 </body>
 </html>

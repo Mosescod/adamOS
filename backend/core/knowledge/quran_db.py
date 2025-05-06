@@ -3,233 +3,160 @@ from typing import Dict, List, Optional
 import logging
 from pymongo import MongoClient, ASCENDING
 from pymongo.errors import PyMongoError
-from ratelimit import limits, sleep_and_retry
 from tenacity import retry, stop_after_attempt, wait_exponential
 import requests
+import urllib.parse
 
 logger = logging.getLogger(__name__)
 
 class QuranDatabase:
     def __init__(self, db_uri: str = None, db_name: str = "adam_ai"):
-        self.db_uri = db_uri or os.getenv("MONGODB_URI")
+        self.db_uri = db_uri or os.getenv("MONGODB_URI", "mongodb://localhost:27017")
         self.db_name = db_name
         self.default_translation = "en.sahih"
         self.client = None
         self.db = None
-        self._connect()
+        self.verses = None
+        self.surahs = None
+        self.themes = None
         
-    def _connect(self):
-        """Establish MongoDB connection and ensure indexes"""
         try:
-            self.client = MongoClient(self.db_uri)
+            self._connect()
+            self._initialize_collections()
+            
+            if not self.is_populated():
+                logger.warning("Database empty, loading minimal data...")
+                self._load_minimal_data()
+                
+        except Exception as e:
+            logger.critical(f"Database initialization failed: {str(e)}")
+            raise RuntimeError("Could not open sacred knowledge repository") from e
+
+    def _connect(self):
+        """Establish MongoDB connection with proper encoding"""
+        try:
+            if "@" in self.db_uri.split("://")[1]:
+                protocol, rest = self.db_uri.split("://")
+                creds, host = rest.split("@")
+                username, password = creds.split(":")
+                encoded_pwd = urllib.parse.quote_plus(password)
+                self.db_uri = f"{protocol}://{username}:{encoded_pwd}@{host}"
+
+            self.client = MongoClient(
+                self.db_uri,
+                serverSelectionTimeoutMS=5000,
+                connectTimeoutMS=10000
+            )
             self.db = self.client[self.db_name]
             
-            # Create indexes if they don't exist
-            self.db.surahs.create_index("number", unique=True)
-            self.db.verses.create_index([
-                ("surah_number", ASCENDING),
-                ("ayah_number", ASCENDING),
-                ("translation", ASCENDING)
-            ], unique=True)
-            self.db.themes.create_index([
-                ("theme", ASCENDING),
-                ("surah_number", ASCENDING),
-                ("ayah_number", ASCENDING)
-            ])
+            self.verses = self.db.verses
+            self.surahs = self.db.surahs
+            self.themes = self.db.themes
             
         except PyMongoError as e:
-            logger.error(f"Failed to connect to MongoDB: {str(e)}")
+            logger.error(f"Connection failed: {str(e)}")
             raise
 
-    def __del__(self):
-        """Clean up MongoDB connection"""
-        if self.client:
-            self.client.close()
+    def _initialize_collections(self):
+        """Ensure all collections exist with proper indexes"""
+        collections = {
+            'verses': [
+                [("surah_number", ASCENDING), 
+                 ("ayah_number", ASCENDING),
+                 ("translation", ASCENDING)],
+                {'unique': True}
+            ],
+            'surahs': [
+                [("number", ASCENDING)],
+                {'unique': True}
+            ],
+            'themes': [
+                [("theme", ASCENDING),
+                 ("surah_number", ASCENDING),
+                 ("ayah_number", ASCENDING)],
+                {}
+            ]
+        }
+        
+        for col_name, (index_fields, index_options) in collections.items():
+            if col_name not in self.db.list_collection_names():
+                self.db.create_collection(col_name)
+                logger.info(f"Created collection: {col_name}")
+            
+            collection = getattr(self.db, col_name)
+            collection.create_index(index_fields, **index_options)
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-    def _fetch_api_data(self, url: str) -> Dict:
+    def _load_minimal_data(self):
+        """Load essential verses and themes"""
+        minimal_data = {
+            'verses': [
+                {
+                    "surah_number": 1,
+                    "ayah_number": 1,
+                    "text": "In the name of God, the Most Gracious, the Most Merciful",
+                    "translation": self.default_translation,
+                    "surah_name": "Al-Fatihah"
+                },
+                {
+                    "surah_number": 2,
+                    "ayah_number": 255,
+                    "text": "Allah! There is no deity except Him, the Ever-Living...",
+                    "translation": self.default_translation,
+                    "surah_name": "Al-Baqarah"
+                }
+            ],
+            'themes': [
+                {"theme": "mercy", "surah_number": 1, "ayah_number": 1},
+                {"theme": "creation", "surah_number": 2, "ayah_number": 30}
+            ]
+        }
+        
         try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            return response.json()
+            self.verses.insert_many(minimal_data['verses'])
+            self.themes.insert_many(minimal_data['themes'])
+            logger.info("Loaded minimal Quran data successfully")
         except Exception as e:
-            logger.warning(f"API attempt failed: {str(e)}")
+            logger.error(f"Failed to load minimal data: {str(e)}")
             raise
-
-    def store_entire_quran(self, translations: Dict[str, str]) -> bool:
-        """Store complete Quran text with translations"""
-        success = True
-        for name, url in translations.items():
-            if not self._store_translation(name, url):
-                success = False
-        return success
-
-    def _store_translation(self, translation_name: str, api_url: str) -> bool:
-        """Store a single Quran translation"""
-        try:
-            data = self._fetch_api_data(api_url)
-            
-            # Clear existing data
-            self.db.surahs.delete_many({})
-            self.db.verses.delete_many({})
-            
-            # Prepare bulk inserts
-            surahs = []
-            verses = []
-            
-            for surah in data['data']['surahs']:
-                surahs.append({
-                    "number": surah['number'],
-                    "name": surah['name'],
-                    "english_name": surah['englishName'],
-                    "english_name_translation": surah['englishNameTranslation'],
-                    "revelation_type": surah['revelationType'],
-                    "ayahs_count": len(surah['ayahs'])
-                })
-                
-                for ayah in surah['ayahs']:
-                    verses.append({
-                        "surah_number": surah['number'],
-                        "ayah_number": ayah['numberInSurah'],
-                        "text": ayah['text'],
-                        "translation": translation_name
-                    })
-            
-            # Bulk insert
-            if surahs:
-                self.db.surahs.insert_many(surahs)
-            if verses:
-                self.db.verses.insert_many(verses)
-                
-            return True
-                
-        except Exception as e:
-            logger.error(f"Error storing {translation_name}: {str(e)}")
-            return False
 
     def is_populated(self) -> bool:
         """Check if database has content"""
-        return self.db.verses.count_documents({}) > 0
+        try:
+            return self.verses.count_documents({}) > 0
+        except Exception as e:
+            logger.error(f"Population check failed: {str(e)}")
+            return False
 
-    def add_theme(self, theme: str, keywords: List[str], translation: str = None):
-        """Add thematic index entries"""
-        translation = translation or self.default_translation
-        
-        # First delete existing theme entries
-        self.db.themes.delete_many({"theme": theme})
-        
-        # Add new entries for each keyword
-        for keyword in keywords:
-            matching_verses = self.db.verses.find({
-                "translation": translation,
-                "text": {"$regex": keyword, "$options": "i"}
-            })
-            
-            theme_entries = [{
-                "theme": theme,
-                "surah_number": verse['surah_number'],
-                "ayah_number": verse['ayah_number']
-            } for verse in matching_verses]
-            
-            if theme_entries:
-                self.db.themes.insert_many(theme_entries)
-
-    def search_verses(self, query: str, translation: str = None, limit: int = 5) -> List[Dict]:
-        """Search verses by content"""
-        translation = translation or self.default_translation
-        cursor = self.db.verses.aggregate([
-            {
-                "$match": {
-                    "translation": translation,
-                    "text": {"$regex": query, "$options": "i"}
-                }
-            },
-            {
-                "$lookup": {
-                    "from": "surahs",
-                    "localField": "surah_number",
-                    "foreignField": "number",
-                    "as": "surah_info"
-                }
-            },
-            {"$unwind": "$surah_info"},
-            {
-                "$project": {
-                    "_id": 0,
-                    "id": "$_id",
-                    "surah_number": 1,
-                    "ayah_number": 1,
-                    "text": 1,
-                    "translation": 1,
-                    "surah_name": "$surah_info.english_name"
-                }
-            },
-            {"$limit": limit}
-        ])
-        return list(cursor)
-
-    def get_verses_by_theme(self, theme: str, translation: str = None, limit: int = None) -> List[Dict]:
-        """Retrieve verses by theme with optional limit"""
-        translation = translation or self.default_translation
-        pipeline = [
-            {"$match": {"theme": theme}},
-            {
-                "$lookup": {
-                    "from": "verses",
-                    "let": {"surah_num": "$surah_number", "ayah_num": "$ayah_number"},
-                    "pipeline": [
-                        {
-                            "$match": {
-                                "$expr": {
-                                    "$and": [
-                                        {"$eq": ["$surah_number", "$$surah_num"]},
-                                        {"$eq": ["$ayah_number", "$$ayah_num"]},
-                                        {"$eq": ["$translation", translation]}
-                                    ]
+    def get_verses_by_theme(self, theme: str, limit: int = None) -> List[Dict]:
+        """Get verses by theme with optional limit"""
+        try:
+            pipeline = [
+                {"$match": {"theme": theme}},
+                {
+                    "$lookup": {
+                        "from": "verses",
+                        "let": {"surah_num": "$surah_number", "ayah_num": "$ayah_number"},
+                        "pipeline": [
+                            {
+                                "$match": {
+                                    "$expr": {
+                                        "$and": [
+                                            {"$eq": ["$surah_number", "$$surah_num"]},
+                                            {"$eq": ["$ayah_number", "$$ayah_num"]},
+                                            {"$eq": ["$translation", self.default_translation]}
+                                        ]
+                                    }
                                 }
                             }
-                        }
-                    ],
-                    "as": "verse_data"
-                }
-            },
-            {"$unwind": "$verse_data"},
-            {
-                "$lookup": {
-                    "from": "surahs",
-                    "localField": "verse_data.surah_number",
-                    "foreignField": "number",
-                    "as": "surah_info"
-                }
-            },
-            {"$unwind": "$surah_info"},
-            {
-                "$project": {
-                    "_id": 0,
-                    "surah_number": "$verse_data.surah_number",
-                    "ayah_number": "$verse_data.ayah_number",
-                    "text": "$verse_data.text",
-                    "translation": "$verse_data.translation",
-                    "surah_name": "$surah_info.english_name"
-                }
-            }
-        ]
-        
-        if limit:
-            pipeline.append({"$limit": limit})
-            
-        return list(self.db.themes.aggregate(pipeline))
-        
-    def get_verse_by_reference(self, ref: str, translation: str = None) -> Dict:
-        """Get verse by reference"""
-        try:
-            surah, ayah = map(int, ref.split(':'))
-            result = self.db.verses.aggregate([
-                {"$match": {"surah_number": surah, "ayah_number": ayah}},
+                        ],
+                        "as": "verse_data"
+                    }
+                },
+                {"$unwind": "$verse_data"},
                 {
                     "$lookup": {
                         "from": "surahs",
-                        "localField": "surah_number",
+                        "localField": "verse_data.surah_number",
                         "foreignField": "number",
                         "as": "surah_info"
                     }
@@ -238,29 +165,57 @@ class QuranDatabase:
                 {
                     "$project": {
                         "_id": 0,
-                        "surah_number": 1,
-                        "ayah_number": 1,
-                        "text": 1,
-                        "translation": 1,
-                        "surah_name": "$surah_info.name"
+                        "surah_number": "$verse_data.surah_number",
+                        "ayah_number": "$verse_data.ayah_number",
+                        "text": "$verse_data.text",
+                        "translation": "$verse_data.translation",
+                        "surah_name": "$surah_info.english_name"
                     }
-                },
-                {"$limit": 1}
-            ])
-            
-            verse = next(result, None)
-            if verse:
-                return verse
-                
-            # Fallback for testing
-            if os.environ.get('PYTEST_CURRENT_TEST'):
-                return {
-                    'text': 'From clay were you shaped',
-                    'surah_name': 'Emergency',
-                    'ayah_number': 1
                 }
-            raise ValueError(f"No verse found for {ref}")
+            ]
             
+            if limit:
+                pipeline.append({"$limit": limit})
+                
+            return list(self.themes.aggregate(pipeline))
         except Exception as e:
-            logger.error(f"Failed to get verse {ref}: {str(e)}")
+            logger.error(f"Failed to get verses by theme: {str(e)}")
+            return []
+
+    def store_entire_quran(self, translations: Dict[str, str]) -> bool:
+        """Store complete Quran text with translations"""
+        try:
+            for name, url in translations.items():
+                if not self._store_translation(name, url):
+                    return False
+            return True
+        except Exception as e:
+            logger.error(f"Failed to store Quran: {str(e)}")
+            return False
+
+    def add_theme(self, theme: str, keywords: List[str]):
+        """Add thematic index entries"""
+        try:
+            self.themes.delete_many({"theme": theme})
+            
+            for keyword in keywords:
+                matching_verses = self.verses.find({
+                    "text": {"$regex": keyword, "$options": "i"}
+                })
+                
+                theme_entries = [{
+                    "theme": theme,
+                    "surah_number": verse['surah_number'],
+                    "ayah_number": verse['ayah_number']
+                } for verse in matching_verses]
+                
+                if theme_entries:
+                    self.themes.insert_many(theme_entries)
+        except Exception as e:
+            logger.error(f"Failed to add theme: {str(e)}")
             raise
+
+    def __del__(self):
+        """Clean up MongoDB connection"""
+        if self.client:
+            self.client.close()

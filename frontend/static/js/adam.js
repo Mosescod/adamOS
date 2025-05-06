@@ -1,134 +1,71 @@
-// adam.js - Complete implementation
 document.addEventListener('DOMContentLoaded', () => {
     const messageHistory = document.getElementById('message-history');
     const chatForm = document.getElementById('chat-form');
     const userInput = document.getElementById('user-input');
     
-    // Boot sequence animation
-    const bootSequence = [
-        "INITIALIZING NEURAL MATRIX...",
-        "LOADING PERSONALITY CORES...",
-        "ESTABLISHING ETHICAL BOUNDARIES...",
-        "SYSTEM READY FOR HUMAN INTERACTION"
-    ];
-
-    const displayBootSequence = async () => {
-        messageHistory.innerHTML = '';
-        
-        for (const message of bootSequence) {
-            await displaySystemMessage(message);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-        
-        // Display welcome message after boot
-        displayAdamMessage(
-            "Greetings. I am ADAM, an artificial intelligence system with a sage-like personality. " +
-            "How may I assist you with thoughtful consideration today?"
-        );
-    };
-
-    const displaySystemMessage = (text) => {
-        return new Promise(resolve => {
-            const messageElement = document.createElement('div');
-            messageElement.className = 'system-message';
-            messageElement.style.width = '0';
-            messageElement.textContent = text;
-            messageHistory.appendChild(messageElement);
-            
-            // Animate typing
-            const width = text.length * 0.6; // Approximate character width
-            let currentWidth = 0;
-            const animation = setInterval(() => {
-                currentWidth += 2;
-                messageElement.style.width = `${currentWidth}ch`;
-                
-                if (currentWidth >= width) {
-                    clearInterval(animation);
-                    resolve();
-                }
-            }, 30);
-        });
-    };
-
-    const displayUserMessage = (text) => {
-        const messageElement = document.createElement('div');
-        messageElement.className = 'user-message';
-        messageElement.textContent = text;
-        messageHistory.appendChild(messageElement);
+    // Initial greeting
+    setTimeout(() => {
+        addMessage('adam', "Hello. I'm ADAM, an AI designed to help with thoughtful consideration. How can I assist you today?");
+    }, 500);
+    
+    // Add message to chat
+    function addMessage(sender, text) {
+        const message = document.createElement('div');
+        message.className = `message ${sender}-message`;
+        message.textContent = text;
+        messageHistory.appendChild(message);
         scrollToBottom();
-    };
-
-    const displayAdamMessage = (text) => {
-        const messageElement = document.createElement('div');
-        messageElement.className = 'adam-message';
-        
-        // Create typing indicator
-        const typingIndicator = document.createElement('div');
-        typingIndicator.className = 'typing-indicator';
-        typingIndicator.innerHTML = '<span></span><span></span><span></span>';
-        messageHistory.appendChild(typingIndicator);
-        scrollToBottom();
-        
-        // Simulate typing delay
-        setTimeout(() => {
-            messageHistory.removeChild(typingIndicator);
-            messageElement.textContent = text;
-            messageHistory.appendChild(messageElement);
-            scrollToBottom();
-        }, 1000 + Math.random() * 1000);
-    };
-
-    const scrollToBottom = () => {
+    }
+    
+    // Scroll to bottom of chat
+    function scrollToBottom() {
         messageHistory.scrollTop = messageHistory.scrollHeight;
-    };
-
-    const sendQueryToBackend = async (question) => {
-        try {
-            const response = await fetch('/api/query', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question: userInput })
-              });
-            
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            
-            const data = await response.json();
-            return data.response;
-        } catch (error) {
-            console.error('Error:', error);
-            return "*clay cracks* My connection to knowledge has faltered";
-        }
-    };
-
-    const handleUserSubmit = async (e) => {
+    }
+    
+    // Handle form submission
+    chatForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const message = userInput.value.trim();
         
         if (message) {
-            displayUserMessage(message);
+            addMessage('user', message);
             userInput.value = '';
             
-            // Get response from backend
-            const response = await sendQueryToBackend(message);
-            displayAdamMessage(response);
+            // Show typing indicator
+            const typing = document.createElement('div');
+            typing.className = 'message typing-indicator';
+            typing.innerHTML = '<span></span><span></span><span></span>';
+            messageHistory.appendChild(typing);
+            scrollToBottom();
+            
+            // Simulate response after delay
+            setTimeout(() => {
+                messageHistory.removeChild(typing);
+                getAIResponse(message);
+            }, 1500);
         }
-    };
-
-    // Initialize chat
-    const setupChat = () => {
-        chatForm.addEventListener('submit', handleUserSubmit);
+    });
+    
+    // Get AI response (simulated)
+    function getAIResponse(query) {
+        // In a real implementation, this would call your backend API
+        const responses = [
+            "I've considered your question carefully. Here's what I can share...",
+            "That's an interesting perspective. From my analysis...",
+            "After reviewing available information, I'd suggest...",
+            "Let me think about that. My understanding is...",
+            "I appreciate your question. The key points are..."
+        ];
         
-        // Allow pressing Enter to submit (but Shift+Enter for new line)
-        userInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                chatForm.dispatchEvent(new Event('submit'));
-            }
-        });
-    };
-
-    displayBootSequence();
-    setupChat();
+        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+        addMessage('adam', randomResponse);
+    }
+    
+    // Allow Shift+Enter for new lines, Enter to send
+    userInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            chatForm.dispatchEvent(new Event('submit'));
+        }
+    });
 });
