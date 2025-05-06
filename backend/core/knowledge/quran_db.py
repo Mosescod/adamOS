@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class QuranDatabase:
     def __init__(self, db_uri: str = None, db_name: str = "adam_ai"):
-        self.db_uri = db_uri or os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+        self.db_uri = db_uri or os.getenv("MONGODB_URI")
         self.db_name = db_name
         self.default_translation = "en.sahih"
         self.client = None
