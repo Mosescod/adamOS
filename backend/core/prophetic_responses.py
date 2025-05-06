@@ -1,14 +1,17 @@
 import re
 import random
+from typing import Union, Dict
 
-
-class AdamRules :
-    def respond(self, text: str) -> str:
-        """Never return None"""        
-        try: 
+class AdamRules:
+    def respond(self, text: Union[str, Dict]) -> str:
+        """Never return None"""
+        try:
+            # Handle dictionary input
+            if isinstance(text, dict):
+                text = text.get('text', '') if 'text' in text else str(text)
+            
             text = text.lower().strip()
-    
-            # Check for special cases first
+            
             special_cases = {
                 r".*\b(quran|verse|scripture)\b.*": [
             "*touches empty tablets* My sacred memory fails me...",
@@ -104,12 +107,14 @@ class AdamRules :
             ]
             }
     
-            for case, pattern in special_cases.items():
+            for pattern, responses in special_cases.items():
                 if re.search(pattern, text):
-                    return random.choice(self.respond[pattern]) if pattern else "*molds clay* " + random.choice([
-                    "The winds carry your words...",
-                    "This matter requires deeper contemplation",
-                    "Let me ponder thy question"
-                    ])
+                    return random.choice(responses)
+            
+            return random.choice([
+                "*kneads clay thoughtfully* Speak again, that I may understand",
+                "The wind carries your words... say more"
+            ])
+            
         except Exception:
             return "*brushes hands* The answer eludes me today"

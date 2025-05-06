@@ -12,7 +12,7 @@ from extensions.__init__ import ExtensionManager
 import logging
 import sys
 import random
-from typing import Dict, Text
+from typing import Dict, Text, Union
 
 logger = logging.getLogger(__name__)
 
@@ -75,13 +75,15 @@ class AdamAI:
             logging.critical(f"Initialization failed: {str(e)}")
             raise
 
-    def query(self, question: str) -> str:
-        # Get platform-specific formatting
-       # adapter = self.platform_adapters.get(platform, DefaultAdapter())
+    def query(self, question: Union[str, Dict]) -> str:
         try:
-            # Check for common themes first
+            # Extract text if input is a dictionary
+            if isinstance(question, dict):
+                question = question.get('text', '') if 'text' in question else str(question)
+            
             question_lower = question.lower()
-        
+            
+            # Check for common themes first
             if any(word in question_lower for word in ['create', 'made', 'shape']):
                 response = self.mind.get_natural_response('creation')
             elif any(word in question_lower for word in ['hell', 'fire', 'punish']):
@@ -97,9 +99,9 @@ class AdamAI:
                     response = self._simplify_verse(verse_data)
                 else:
                     response = "*reshapes clay* The answer eludes me today"
-        
+            
             return self._apply_emotional_formatting(response)
-        
+            
         except Exception as e:
             logger.error(f"Query failed: {str(e)}")
             return self._apply_emotional_formatting("*clay cracks* My knowledge fails me momentarily")

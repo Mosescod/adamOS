@@ -1,7 +1,7 @@
 from datetime import datetime
 import json
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Union
 
 class ConversationMemory:
     def __init__(self, user_id: str):
@@ -33,8 +33,12 @@ class ConversationMemory:
             return "justice"
         return "other"
     
-    def store(self, question: str, response: str):
+    def store(self, question: Union[str, Dict], response: str):
         """Store with theme analysis"""
+        # Handle dictionary input
+        if isinstance(question, dict):
+            question = question.get('text', '') if 'text' in question else str(question)
+            
         theme = self._detect_theme(question + response)
         self.spiritual_themes[theme] += 1
         

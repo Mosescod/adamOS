@@ -1,7 +1,7 @@
 from pathlib import Path
 import json
 import random
-from typing import Dict
+from typing import Dict, Union
 
 class AdamPersonality:
     def __init__(self, username: str, synthesizer):
@@ -20,9 +20,13 @@ class AdamPersonality:
         self.memory = []  # New: conversation memory
         self.mood = 0.7   # New: neutral-positive baseline
 
-    def generate_response(self, question: str, knowledge: str, mood: float = None) -> str:
+    def generate_response(self, question: Union[str, Dict], knowledge: str, mood: float = None) -> str:
         """Generates responses infused with mood, memory, and personality traits"""
         try:
+            # Handle dictionary input
+            if isinstance(question, dict):
+                question = question.get('text', '') if 'text' in question else str(question)
+            
             # Select base template
             template = self._select_template(question)
             
