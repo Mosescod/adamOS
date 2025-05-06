@@ -1,2 +1,3 @@
 web: gunicorn app:app
 release: python -m nltk.downloader punkt wordnet stopwords
+web: gunicorn wsgi:app

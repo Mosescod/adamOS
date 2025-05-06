@@ -205,11 +205,7 @@ if __name__ == "__main__":
         ]
     )
     
-    try:
-        user_id = input("Enter your name: ").strip() or "default_user"
-        ai = AdamAI(user_id)
-        ai.run()
-    except Exception as e:
-        logger.critical(f"System failure: {str(e)}")
-        print("\nAdam: *falls silent* The clay crumbles...")
-        sys.exit(1)
+    # Replace interactive input with fixed user_id
+    user_id = "web_user"  # Default user ID for container
+    ai = AdamAI(user_id)
+    ai.run()
