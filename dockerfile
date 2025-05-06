@@ -1,5 +1,12 @@
-FROM python:3.11-slim
+# Stage 1: Frontend build (if needed)
+FROM node:18 as frontend-builder
+WORKDIR /app
+COPY frontend/ .
+# Remove if not using Node.js:
+RUN if [ -f "package.json" ]; then npm install && npm run build; fi
 
+# Stage 2: Backend setup
+FROM python:3.11-slim
 WORKDIR /app
 
 # Install system dependencies
@@ -7,16 +14,17 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc python3-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Install Python requirements
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all files
-COPY . .
+# Copy application code
+COPY backend/ ./backend
+COPY --from=frontend-builder /app/dist ./frontend/dist || true
+COPY --from=frontend-builder /app ./frontend || true
 
-# Setup environment
+# Runtime configuration
 ENV PYTHONPATH=/app
 WORKDIR /app/backend
-
-# Run the app
+EXPOSE $PORT
 CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:$PORT"]
