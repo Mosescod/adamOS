@@ -175,25 +175,13 @@ class AdamAI:
             
         return formatted
 
-    def run(self):
-        """Main conversation loop"""
-        print("\nAdam: *brushes clay from hands* Speak, and I will answer.")
-        while True:
-            try:
-                question = input("\nYou: ").strip()
-                if not question:
-                    continue
-                    
-                if question.lower() in ['exit', 'quit']:
-                    print("\nAdam: *nods* Peace be upon thee.")
-                    break
-                    
-                response = self.query(question)
-                print(f"\nAdam: {response}")
-                
-            except KeyboardInterrupt:
-                print("\nAdam: *brushes hands* The angel calls me away.")
-                break
+    def web_query(self, question: str) -> str:
+        """Web-friendly version that doesn't use input()"""
+        try:
+            return self.query(question)
+        except Exception as e:
+            logger.error(f"Query failed: {str(e)}")
+            return "*clay cracks* My knowledge fails me momentarily"
 
 if __name__ == "__main__":
     logging.basicConfig(
