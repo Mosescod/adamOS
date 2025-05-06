@@ -19,50 +19,32 @@ logger = logging.getLogger(__name__)
 class AdamAI:
     def __init__(self, quran_db, user_id: str = "default"):
         try:
-
             self.user_id = user_id
             self.knowledge = DivineKnowledge(quran_db)
             self.emotions = EmotionalModel(user_id)
             self.memory = ConversationMemory(user_id)
-
-            #self.extensions = ExtensionManager()
-            #self.platform_adapters = {
-            #    "telegram": TelegramAdapter(),
-            #    "discord": DiscordAdapter(),
-            #    "web": WebAdapter()
-            #}
-
-            # 1. Initialize core knowledge systems
+            
             self.scanner = SacredScanner()
             self.mind = DivineKnowledge(self.scanner.db)
-            self.quran_db = QuranDatabase()
-
-            # 2. Load documents 
+            self.quran_db = quran_db
+            
             documents = DocumentLoader.load_from_json("core/knowledge/data/documents.json")
-            
-            # 3. Initialize DocumentKnowledge (TF-IDF search)
             self.doc_knowledge = DocumentKnowledge()
-            self.doc_knowledge = DocumentKnowledge()
-            
-            
-            # 4. Create synthesizer with both systems
-            from core.knowledge.synthesizer import DocumentSynthesizer
             self.synthesizer = DocumentSynthesizer(
                 documents=documents,
                 quran_db=self.scanner.db,
-                doc_searcher=self.doc_knowledge  # Add TF-IDF capability
+                doc_searcher=self.doc_knowledge
             )
+            
             if not self.scanner.db.is_populated():
                 logger.warning("Performing emergency Quran storage...")
                 if not self.scanner.db.emergency_theme_rebuild():
                     raise RuntimeError("Failed to store sacred verses")
             
-            # 5. Finally, create personality
             self.personality = AdamPersonality(
                 username=user_id,
                 synthesizer=self.synthesizer
             )
-            
             self.emotional_model = EmotionalModel(user_id)
             self.prophetic_responses = AdamRules()
             
@@ -183,17 +165,3 @@ class AdamAI:
             logger.error(f"Query failed: {str(e)}")
             return "*clay cracks* My knowledge fails me momentarily"
 
-if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler("adamai.log"),
-            logging.StreamHandler()
-        ]
-    )
-    
-    # Replace interactive input with fixed user_id
-    user_id = "web_user"  # Default user ID for container
-    ai = AdamAI(user_id)
-    ai.run()

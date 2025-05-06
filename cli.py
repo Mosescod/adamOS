@@ -1,5 +1,5 @@
-# cli.py
 from main import AdamAI
+from core.knowledge.quran_db import QuranDatabase
 import logging
 import sys
 
@@ -11,7 +11,7 @@ def run_cli():
     
     try:
         user_id = input("Enter your name: ").strip() or "default_user"
-        ai = AdamAI(user_id=user_id)
+        ai = AdamAI(quran_db=QuranDatabase(), user_id=user_id)
         
         print("\nAdam: *brushes clay from hands* Speak, and I will answer.")
         while True:
@@ -28,7 +28,7 @@ def run_cli():
     except (EOFError, KeyboardInterrupt):
         print("\nAdam: *brushes hands* The angel calls me away.")
     except Exception as e:
-        logger.critical(f"System failure: {str(e)}")
+        logging.critical(f"System failure: {str(e)}")
         print("\nAdam: *falls silent* The clay crumbles...")
         sys.exit(1)
 
