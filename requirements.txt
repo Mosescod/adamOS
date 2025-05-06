@@ -22,6 +22,10 @@ gensim>=4.2.0
 python-telegram-bot>=20.0
 discord.py>=2.0
 
-flask==2.3.2
-sqlite3==3.37.0  # Usually included in Python standard library
-python-dotenv==1.0.0
+Flask>=2.0.0
+flask-cors
+gunicorn
+python-dotenv
+
+ratelimit==2.2.1
+tenacity=9.1.2

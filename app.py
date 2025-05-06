@@ -59,6 +59,10 @@ def handle_security():
         logger.error(f"Security error: {str(e)}")
         return jsonify({"error": "Security subsystem failure"}), 500
 
+@app.route('/')
+def serve_index():
+    return send_from_directory('interfaces/web', 'index.html')
+
 # Frontend Routes
 @app.route('/homepage')
 def home():
