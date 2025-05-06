@@ -19,9 +19,8 @@ COPY backend/ ./backend
 
 # Copy frontend assets (conditional)
 COPY frontend/ ./frontend
-RUN if [ -d "/app/frontend/dist" ]; then \
-    chmod -R 755 /app/frontend/dist; \
-    fi
+COPY frontend/static/ ./frontend/static/
+RUN chmod -R 755 frontend/static
 
 # Runtime configuration
 ENV PYTHONPATH=/app

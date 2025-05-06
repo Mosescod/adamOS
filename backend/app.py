@@ -10,7 +10,7 @@ from flask_cors import CORS
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='../frontend/static')
 CORS(app)
 
 # Initialize components
@@ -73,9 +73,11 @@ def serve_page(page):
         return send_from_directory('../frontend/pages', f'{page}.html')
     return "Not Found", 404
 
-@app.route('/static/<path:path>')
-def serve_static(path):
-    return send_from_directory('../frontend/static', path, max_age=31536000)
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    return send_from_directory(
+        os.path.join(app.root_path, '../frontend/static'),
+        filename)
     
 
 # Health check
