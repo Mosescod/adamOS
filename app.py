@@ -14,20 +14,16 @@ app = Flask(__name__, static_folder='interfaces/web/static')
 # Initialize components
 def initialize_components():
     try:
+        # Get user_id from environment or use default
+        user_id = os.getenv("USER_ID", "default_user")
+        
         # Database setup
-        db_path = Path("core/knowledge/data/quran.db")
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        quran_db = QuranDatabase(db_path=str(db_path))
+        db = MongoDB() if os.getenv("USE_MONGO") else QuranDatabase()
         
-        # AI initialization
-        adam = AdamAI(quran_db=quran_db, user_id="web_user")
-        
-        logger.info("Components initialized successfully")
-        return adam
-        
+        return AdamAI(quran_db=db, user_id=user_id)
     except Exception as e:
         logger.critical(f"Initialization failed: {str(e)}")
-        raise RuntimeError("System startup failed")
+        raise
 
 adam = initialize_components()
 
