@@ -4,6 +4,7 @@ gunicorn==21.2.0
 python-dotenv==1.0.0
 ratelimit==2.2.1
 tenacity==9.1.2
+flask-cors==4.0.0
 
 
 # Database & Knowledge
