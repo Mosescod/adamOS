@@ -1,0 +1,3 @@
+web: gunicorn app:app --bind 0.0.0.0:$PORT
+cli: python cli.py
+release: python -m nltk.downloader punkt wordnet stopwords
