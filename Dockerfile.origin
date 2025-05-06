@@ -26,5 +26,16 @@ RUN if [ -d "/app/frontend/dist" ]; then \
 # Runtime configuration
 ENV PYTHONPATH=/app
 WORKDIR /app/backend
-EXPOSE $PORT
-CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:$PORT"]
+
+# Set default port (will be overridden by Railway)
+ENV PORT=8000
+
+
+# Install dependencies
+RUN pip install gunicorn
+COPY backend/requirements.txt .
+RUN pip install -r requirements.txt
+
+# Run with explicit port binding
+CMD ["sh", "-c", "gunicorn backend.app:app --bind 0.0.0.0:${PORT:-8000}"]
+
