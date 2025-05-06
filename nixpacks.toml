@@ -1,0 +1,13 @@
+[phases.setup]
+cmds = [
+    "cd backend && pip install -r requirements.txt",
+    "cd frontend && npm install || true" # Only if using Node
+]
+
+[phases.build]
+cmds = [
+    "cd frontend && npm run build || true" # Only if needed
+]
+
+[start]
+cmd = "cd backend && gunicorn app:app --bind 0.0.0.0:$PORT"
