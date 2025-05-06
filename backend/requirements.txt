@@ -27,5 +27,6 @@ tqdm==4.66.1
 # Emotional Model
 textblob==0.17.1
 vaderSentiment==3.3.2
-urllib3==1.22
+requests==2.28.2
+urllib3==1.26.15
 
