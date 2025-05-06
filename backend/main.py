@@ -12,6 +12,7 @@ from extensions.__init__ import ExtensionManager
 import logging
 import sys
 import random
+import os
 from typing import Dict, Text, Union
 
 logger = logging.getLogger(__name__)
@@ -26,19 +27,21 @@ class AdamAI:
             
             self.scanner = SacredScanner()
             self.mind = DivineKnowledge(self.scanner.db)
-            self.quran_db = quran_db
+            self.quran_db = quran_db or QuranDatabase(os.getenv("MONGODB_URI"))
             
             documents = DocumentLoader.load_from_json("core/knowledge/data/documents.json")
             self.doc_knowledge = DocumentKnowledge()
             self.synthesizer = DocumentSynthesizer(
                 documents=documents,
-                quran_db=self.scanner.db,
+                quran_db=self.quran_db,
                 doc_searcher=self.doc_knowledge
             )
             
-            if not self.scanner.db.is_populated():
+            if not self.quran_db.is_populated():
                 logger.warning("Performing emergency Quran storage...")
-                if not self.scanner.db.emergency_theme_rebuild():
+                if not self.quran_db.store_entire_quran({
+                    'en.sahih': 'https://api.alquran.cloud/v1/quran/en.sahih'
+                }):
                     raise RuntimeError("Failed to store sacred verses")
             
             self.personality = AdamPersonality(

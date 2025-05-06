@@ -1,75 +1,50 @@
-import sqlite3  
-import requests
 import os
-from pathlib import Path
 from typing import Dict, List, Optional
 import logging
+from pymongo import MongoClient, ASCENDING
+from pymongo.errors import PyMongoError
 from ratelimit import limits, sleep_and_retry
 from tenacity import retry, stop_after_attempt, wait_exponential
+import requests
 
 logger = logging.getLogger(__name__)
 
 class QuranDatabase:
-    def __init__(self, db_path: str = "core/knowledge/data/quran.db"):
-        self.db_path = Path(db_path)
+    def __init__(self, db_uri: str = None, db_name: str = "adam_ai"):
+        self.db_uri = db_uri or os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+        self.db_name = db_name
         self.default_translation = "en.sahih"
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._connection = None
-        self._initialize_db()
-        self.db_path = db_path
-        self._connection = None  # Track active connection
-    
-    def _get_connection(self):
-        """Get connection with cleanup"""
-        if self._connection:
-            self._connection.close()
-        self._connection = sqlite3.connect(self.db_path)
-        return self._connection
+        self.client = None
+        self.db = None
+        self._connect()
         
-    def __del__(self):
-        """Ensure connection cleanup"""
-        if self._connection:
-            self._connection.close()
+    def _connect(self):
+        """Establish MongoDB connection and ensure indexes"""
+        try:
+            self.client = MongoClient(self.db_uri)
+            self.db = self.client[self.db_name]
+            
+            # Create indexes if they don't exist
+            self.db.surahs.create_index("number", unique=True)
+            self.db.verses.create_index([
+                ("surah_number", ASCENDING),
+                ("ayah_number", ASCENDING),
+                ("translation", ASCENDING)
+            ], unique=True)
+            self.db.themes.create_index([
+                ("theme", ASCENDING),
+                ("surah_number", ASCENDING),
+                ("ayah_number", ASCENDING)
+            ])
+            
+        except PyMongoError as e:
+            logger.error(f"Failed to connect to MongoDB: {str(e)}")
+            raise
 
-    def _initialize_db(self):
-        """Initialize database tables with proper schema"""
-        with sqlite3.connect(str(self.db_path)) as conn:
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS surahs (
-                    number INTEGER PRIMARY KEY,
-                    name TEXT,
-                    english_name TEXT,
-                    english_name_translation TEXT,
-                    revelation_type TEXT,
-                    ayahs_count INTEGER
-                )
-            """)
-            
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS verses (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    surah_number INTEGER,
-                    ayah_number INTEGER,
-                    text TEXT,
-                    translation TEXT,
-                    UNIQUE(surah_number, ayah_number, translation),
-                    FOREIGN KEY (surah_number) REFERENCES surahs(number)
-                )
-            """)
-            
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS themes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    theme TEXT,
-                    surah_number INTEGER,
-                    ayah_number INTEGER,
-                    FOREIGN KEY (surah_number, ayah_number) 
-                    REFERENCES verses(surah_number, ayah_number)
-                )
-            """)
-            conn.commit()
+    def __del__(self):
+        """Clean up MongoDB connection"""
+        if self.client:
+            self.client.close()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     def _fetch_api_data(self, url: str) -> Dict:
@@ -94,141 +69,198 @@ class QuranDatabase:
         try:
             data = self._fetch_api_data(api_url)
             
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
+            # Clear existing data
+            self.db.surahs.delete_many({})
+            self.db.verses.delete_many({})
+            
+            # Prepare bulk inserts
+            surahs = []
+            verses = []
+            
+            for surah in data['data']['surahs']:
+                surahs.append({
+                    "number": surah['number'],
+                    "name": surah['name'],
+                    "english_name": surah['englishName'],
+                    "english_name_translation": surah['englishNameTranslation'],
+                    "revelation_type": surah['revelationType'],
+                    "ayahs_count": len(surah['ayahs'])
+                })
                 
-                # Clear existing data
-                cursor.execute("DELETE FROM verses")
-                cursor.execute("DELETE FROM surahs")
+                for ayah in surah['ayahs']:
+                    verses.append({
+                        "surah_number": surah['number'],
+                        "ayah_number": ayah['numberInSurah'],
+                        "text": ayah['text'],
+                        "translation": translation_name
+                    })
+            
+            # Bulk insert
+            if surahs:
+                self.db.surahs.insert_many(surahs)
+            if verses:
+                self.db.verses.insert_many(verses)
                 
-                for surah in data['data']['surahs']:
-                    cursor.execute(
-                        """INSERT INTO surahs 
-                        (number, name, english_name, english_name_translation, revelation_type, ayahs_count)
-                        VALUES (?, ?, ?, ?, ?, ?)""",
-                        (
-                            surah['number'],
-                            surah['name'],
-                            surah['englishName'],
-                            surah['englishNameTranslation'],
-                            surah['revelationType'],
-                            len(surah['ayahs'])
-                        )
-                    )
-                    
-                    for ayah in surah['ayahs']:
-                        cursor.execute(
-                            """INSERT INTO verses 
-                            (surah_number, ayah_number, text, translation)
-                            VALUES (?, ?, ?, ?)""",
-                            (
-                                surah['number'],
-                                ayah['numberInSurah'],
-                                ayah['text'],
-                                translation_name
-                            )
-                        )
-                
-                conn.commit()
-                return True
+            return True
                 
         except Exception as e:
             logger.error(f"Error storing {translation_name}: {str(e)}")
             return False
 
     def is_populated(self) -> bool:
-        """Check if themes exist too"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM themes")
-            return cursor.fetchone()[0] > 0  # Now checks themes, not just verses
+        """Check if database has content"""
+        return self.db.verses.count_documents({}) > 0
 
     def add_theme(self, theme: str, keywords: List[str], translation: str = None):
         """Add thematic index entries"""
         translation = translation or self.default_translation
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        
+        # First delete existing theme entries
+        self.db.themes.delete_many({"theme": theme})
+        
+        # Add new entries for each keyword
+        for keyword in keywords:
+            matching_verses = self.db.verses.find({
+                "translation": translation,
+                "text": {"$regex": keyword, "$options": "i"}
+            })
             
-            # Clear existing theme entries
-            cursor.execute("DELETE FROM themes WHERE theme = ?", (theme,))
+            theme_entries = [{
+                "theme": theme,
+                "surah_number": verse['surah_number'],
+                "ayah_number": verse['ayah_number']
+            } for verse in matching_verses]
             
-            # Add new entries
-            for keyword in keywords:
-                cursor.execute("""
-                    INSERT INTO themes (theme, surah_number, ayah_number)
-                    SELECT ?, v.surah_number, v.ayah_number
-                    FROM verses v
-                    WHERE v.translation = ? AND v.text LIKE ?
-                """, (theme, translation, f"%{keyword}%"))
-            
-            conn.commit()
+            if theme_entries:
+                self.db.themes.insert_many(theme_entries)
 
     def search_verses(self, query: str, translation: str = None, limit: int = 5) -> List[Dict]:
         """Search verses by content"""
         translation = translation or self.default_translation
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT v.*, s.english_name as surah_name 
-                FROM verses v
-                JOIN surahs s ON v.surah_number = s.number
-                WHERE v.translation = ? AND v.text LIKE ?
-                LIMIT ?
-            """, (translation, f"%{query}%", limit))
-            
-            return [dict(row) for row in cursor.fetchall()]
+        cursor = self.db.verses.aggregate([
+            {
+                "$match": {
+                    "translation": translation,
+                    "text": {"$regex": query, "$options": "i"}
+                }
+            },
+            {
+                "$lookup": {
+                    "from": "surahs",
+                    "localField": "surah_number",
+                    "foreignField": "number",
+                    "as": "surah_info"
+                }
+            },
+            {"$unwind": "$surah_info"},
+            {
+                "$project": {
+                    "_id": 0,
+                    "id": "$_id",
+                    "surah_number": 1,
+                    "ayah_number": 1,
+                    "text": 1,
+                    "translation": 1,
+                    "surah_name": "$surah_info.english_name"
+                }
+            },
+            {"$limit": limit}
+        ])
+        return list(cursor)
 
     def get_verses_by_theme(self, theme: str, translation: str = None, limit: int = None) -> List[Dict]:
         """Retrieve verses by theme with optional limit"""
         translation = translation or self.default_translation
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+        pipeline = [
+            {"$match": {"theme": theme}},
+            {
+                "$lookup": {
+                    "from": "verses",
+                    "let": {"surah_num": "$surah_number", "ayah_num": "$ayah_number"},
+                    "pipeline": [
+                        {
+                            "$match": {
+                                "$expr": {
+                                    "$and": [
+                                        {"$eq": ["$surah_number", "$$surah_num"]},
+                                        {"$eq": ["$ayah_number", "$$ayah_num"]},
+                                        {"$eq": ["$translation", translation]}
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    "as": "verse_data"
+                }
+            },
+            {"$unwind": "$verse_data"},
+            {
+                "$lookup": {
+                    "from": "surahs",
+                    "localField": "verse_data.surah_number",
+                    "foreignField": "number",
+                    "as": "surah_info"
+                }
+            },
+            {"$unwind": "$surah_info"},
+            {
+                "$project": {
+                    "_id": 0,
+                    "surah_number": "$verse_data.surah_number",
+                    "ayah_number": "$verse_data.ayah_number",
+                    "text": "$verse_data.text",
+                    "translation": "$verse_data.translation",
+                    "surah_name": "$surah_info.english_name"
+                }
+            }
+        ]
         
-            query = """
-                SELECT v.*, s.english_name as surah_name 
-                FROM verses v
-                JOIN surahs s ON v.surah_number = s.number
-                JOIN themes t ON v.surah_number = t.surah_number AND v.ayah_number = t.ayah_number
-                WHERE t.theme = ? AND v.translation = ?
-            """
-            params = [theme, translation]
-        
-            if limit:
-                query += " LIMIT ?"
-                params.append(limit)
+        if limit:
+            pipeline.append({"$limit": limit})
             
-            cursor.execute(query, params)
-            return [dict(row) for row in cursor.fetchall()]
+        return list(self.db.themes.aggregate(pipeline))
         
     def get_verse_by_reference(self, ref: str, translation: str = None) -> Dict:
-        """Get verse by reference with test mode handling"""
+        """Get verse by reference"""
         try:
             surah, ayah = map(int, ref.split(':'))
-            with sqlite3.connect(str(self.db_path)) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT v.*, s.name as surah_name 
-                    FROM verses v
-                    JOIN surahs s ON v.surah_number = s.number
-                    WHERE v.surah_number = ? AND v.ayah_number = ?
-                """, (surah, ayah))
-                result = cursor.fetchone()
-                if result:
-                    return dict(result)
-                
-                # Fallback for testing
-                if os.environ.get('PYTEST_CURRENT_TEST'):
-                    return {
-                        'text': 'From clay were you shaped',
-                        'surah_name': 'Emergency',
-                        'ayah_number': 1
+            result = self.db.verses.aggregate([
+                {"$match": {"surah_number": surah, "ayah_number": ayah}},
+                {
+                    "$lookup": {
+                        "from": "surahs",
+                        "localField": "surah_number",
+                        "foreignField": "number",
+                        "as": "surah_info"
                     }
-                raise ValueError(f"No verse found for {ref}")
+                },
+                {"$unwind": "$surah_info"},
+                {
+                    "$project": {
+                        "_id": 0,
+                        "surah_number": 1,
+                        "ayah_number": 1,
+                        "text": 1,
+                        "translation": 1,
+                        "surah_name": "$surah_info.name"
+                    }
+                },
+                {"$limit": 1}
+            ])
+            
+            verse = next(result, None)
+            if verse:
+                return verse
                 
+            # Fallback for testing
+            if os.environ.get('PYTEST_CURRENT_TEST'):
+                return {
+                    'text': 'From clay were you shaped',
+                    'surah_name': 'Emergency',
+                    'ayah_number': 1
+                }
+            raise ValueError(f"No verse found for {ref}")
+            
         except Exception as e:
             logger.error(f"Failed to get verse {ref}: {str(e)}")
             raise
