@@ -1,15 +1,11 @@
-# Stage 1: Frontend build (if needed)
-FROM node:18 as frontend-builder
-WORKDIR /app
-COPY frontend/ .
-# Remove if not using Node.js:
-RUN if [ -f "package.json" ]; then npm install && npm run build; fi
+# Stage 1: Frontend build (only if using Node.js)
+
 
 # Stage 2: Backend setup
 FROM python:3.11-slim
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies first
 RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc python3-dev && \
     rm -rf /var/lib/apt/lists/*
@@ -18,10 +14,14 @@ RUN apt-get update && \
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy backend code
 COPY backend/ ./backend
-COPY --from=frontend-builder /app/dist ./frontend/dist || true
-COPY --from=frontend-builder /app ./frontend || true
+
+# Copy frontend assets (conditional)
+COPY frontend/ ./frontend
+RUN if [ -d "/app/frontend/dist" ]; then \
+    chmod -R 755 /app/frontend/dist; \
+    fi
 
 # Runtime configuration
 ENV PYTHONPATH=/app
