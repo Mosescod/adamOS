@@ -107,17 +107,14 @@ class AdamPersonality:
             self.memory.pop(0)
 
     def _fallback_response(self, question: str) -> str:
-        """More specific fallbacks"""
-        question_lower = question.lower()
+        fallbacks = [
+        "*shapes clay* Your question stirs my thoughts...",
+        "*kneads clay* The answer eludes me now",
+        "*brushes hands* This truth awaits revelation",
+        "*touches earth* My knowledge is incomplete here",
+        "*molds clay* The answer lies beyond my current understanding",
+        "*shapes clay slowly* This knowledge hasn't been revealed to me",
+        "*crumbles clay* My wisdom falters on this matter"
+        ]
+        return random.choice(fallbacks)
         
-        if any(w in question_lower for w in ['hell', 'fire']):
-            return "*bows head* The Fire is but one path of many..."
-        elif any(w in question_lower for w in ['feel', 'emotion']):
-            return "*touches chest* Your feelings are heard"
-        elif any(w in question_lower for w in ['girlfriend', 'relationship']):
-            return "*molds clay* Matters of the heart require wisdom"
-            
-        return random.choice([
-            "*molds clay* Thy question stirs the dust of my memory...",
-            "*touches earth* The answer lies beyond my ken"
-        ])

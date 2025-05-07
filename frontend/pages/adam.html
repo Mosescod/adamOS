@@ -3,25 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ADAM AI - Minimal Interface</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+    <title>ADAM AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../static/css/adam.css">
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <div class="logo">ADAM AI</div>
+        <div class="header">            
+            <div class="logo">
+                    <a href="/homepage" class="nav-link">              
+                        <span>ADAM</span>                    
+                        <span class="version">v0.4.1</span>
+                    </a>                    
+            </div>
             <nav>
-                <a href="docs.html" class="nav-link">Docs</a>
-                <a href="noahq.html" class="nav-link">Security</a>
-                <a href="#" class="nav-link">Settings</a>
+                <a href="/docs" class="nav-link">
+                    <i class="fas fa-book"></i>
+                    <span>Scroll</span>
+                </a>
+                <a href="/noahq" class="nav-link">
+                    <i class="fas fa-anchor"></i>
+                    <span>NoahQ</span>
+                </a>
+                <a href="https://github.com/Mosescod/adam" class="nav-link">
+                    <i class="fab fa-github"></i>
+                    <span>Github</span>
+                </a>
             </nav>
         </div>
 
         <div class="chat-container">
             <div class="chat-header">
-                ADAM v2.0
+                <div class="header-content">
+                    <i class="fas fa-user"></i>
+                    <h1>ADAM AI</h1>
+                    <div class="status-indicator active"></div>
+                </div>
+                <div class="header-actions">
+                    <button class="header-btn">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                </div>
             </div>
             
             <div class="chat-messages" id="message-history">
@@ -29,16 +52,36 @@
             </div>
             
             <form class="chat-input" id="chat-form">
-                <input type="text" id="user-input" placeholder="Ask ADAM anything..." autocomplete="off">
+                <div class="input-container">
+                    <input type="text" id="user-input" placeholder="Ask ADAM anything..." autocomplete="off">
+                    <div class="input-actions">
+                        <button type="button" class="input-btn">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button type="button" class="input-btn">
+                            <i class="fas fa-paperclip"></i>
+                        </button>
+                    </div>
+                </div>
                 <button type="submit" class="send-btn">
                     <i class="fas fa-paper-plane"></i>
                 </button>
             </form>
         </div>
 
-        <div class="status">
-            <div class="status-dot"></div>
-            <span>ADAM is online and ready</span>
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-dot"></div>
+                <span>System Operational</span>
+            </div>
+            <div class="status-item">
+                <i class="fas fa-bolt"></i>
+                <span>Response Time: ...s</span>
+            </div>
+            <div class="status-item">
+                <i class="fas fa-lock"></i>
+                <span>Encrypted</span>
+            </div>
         </div>
     </div>
 

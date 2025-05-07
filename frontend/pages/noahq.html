@@ -3,64 +3,157 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ADAM AI - Security</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+    <title>ADAM AI - Security Console</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../static/css/noahq.css">
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">ADAM AI</div>
+            <div class="logo">
+                <span>NOAH Q</span>
+                <span class="version">Security v2.1</span>
+            </div>
             <nav>
-                <a href="adam.html" class="nav-link">Chat</a>
-                <a href="docs.html" class="nav-link">Docs</a>
-                <a href="#" class="nav-link">Settings</a>
+                <a href="adam.html" class="nav-link">
+                    <i class="fas fa-comment"></i>
+                    <span>ADAM</span>
+                </a>
+                <a href="docs.html" class="nav-link">
+                    <i class="fas fa-book"></i>
+                    <span>Docs</span>
+                </a>
+                <a href="https://github.com/Mosescod/adam" class="nav-link" id="github-link">
+                    <i class="fab fa-github"></i>
+                    <span>GitHub</span>
+                </a>
             </nav>
         </div>
 
         <div class="security-container">
-            <h1><i class="fas fa-shield-alt"></i> Security Console</h1>
+            <div class="security-header">
+                <div class="header-content">
+                    <i class="fas fa-shield-alt"></i>
+                    <h1>SECURITY CONSOLE</h1>
+                </div>
+                <div class="header-actions">
+                    <button class="header-btn" id="refresh-btn">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <button class="header-btn" id="fullscreen-btn">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                    <button class="header-btn" id="clear-log">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
             
             <div class="security-status">
-                <div class="status-item">
-                    <div class="status-indicator active"></div>
-                    <span>Encryption</span>
+                <div class="status-card" id="encryption-status">
+                    <div class="status-icon success">
+                        <i class="fas fa-lock"></i>
+                    </div>
+                    <div class="status-info">
+                        <h3>Encryption</h3>
+                        <p>AES-256 Active</p>
+                    </div>
                 </div>
-                <div class="status-item">
-                    <div class="status-indicator active"></div>
-                    <span>Authentication</span>
+                
+                <div class="status-card" id="auth-status">
+                    <div class="status-icon success">
+                        <i class="fas fa-user-shield"></i>
+                    </div>
+                    <div class="status-info">
+                        <h3>Authentication</h3>
+                        <p>OAuth 2.0</p>
+                    </div>
                 </div>
-                <div class="status-item">
-                    <div class="status-indicator active"></div>
-                    <span>Ethical Protocols</span>
+                
+                <div class="status-card" id="ethics-status">
+                    <div class="status-icon success">
+                        <i class="fas fa-balance-scale"></i>
+                    </div>
+                    <div class="status-info">
+                        <h3>Ethics</h3>
+                        <p>Protocols Active</p>
+                    </div>
+                </div>
+                
+                <div class="status-card" id="system-status">
+                    <div class="status-icon success">
+                        <i class="fas fa-server"></i>
+                    </div>
+                    <div class="status-info">
+                        <h3>System</h3>
+                        <p>All Green</p>
+                    </div>
                 </div>
             </div>
             
-            <div class="security-log" id="security-log">
-                <div class="log-entry">System initialized</div>
-                <div class="log-entry">Security protocols active</div>
+            <div class="security-grid">
+                <div class="security-log">
+                    <div class="log-header">
+                        <h2>SECURITY LOG</h2>
+                        <div class="log-controls">
+                            <span class="log-counter">0 entries</span>
+                            <div class="log-filters">
+                                <button class="filter-btn active" data-filter="all">All</button>
+                                <button class="filter-btn" data-filter="success">Secure</button>
+                                <button class="filter-btn" data-filter="warning">Warnings</button>
+                                <button class="filter-btn" data-filter="error">Errors</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="log-content" id="security-log">
+                        <!-- Log entries will appear here -->
+                    </div>
+                </div>
+                
+                <div class="security-form-container">
+                    <h2>SECURITY QUERY</h2>
+                    <form class="security-form" id="security-form">
+                        <div class="form-group">
+                            <label>Query Type</label>
+                            <select class="form-control" id="query-type">
+                                <option value="Security Audit">Security Audit</option>
+                                <option value="Ethical Review">Ethical Review</option>
+                                <option value="System Check">System Check</option>
+                                <option value="Threat Scan">Threat Scan</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Scan Parameters</label>
+                            <div class="form-params">
+                                <label class="param-checkbox">
+                                    <input type="checkbox" name="deep-scan" checked>
+                                    <span>Deep Scan</span>
+                                </label>
+                                <label class="param-checkbox">
+                                    <input type="checkbox" name="validate-ethics" checked>
+                                    <span>Validate Ethics</span>
+                                </label>
+                                <label class="param-checkbox">
+                                    <input type="checkbox" name="force-refresh">
+                                    <span>Force Refresh</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Details</label>
+                            <textarea class="form-control" id="query-details" rows="4" placeholder="Enter scan parameters or target..."></textarea>
+                        </div>
+                        
+                        <button type="submit" class="submit-btn">
+                            <i class="fas fa-search"></i>
+                            <span>Execute Scan</span>
+                        </button>
+                    </form>
+                </div>
             </div>
-            
-            <form class="security-form" id="security-form">
-                <div class="form-group">
-                    <label>Query Type</label>
-                    <select class="form-control">
-                        <option>Security Audit</option>
-                        <option>Ethical Review</option>
-                        <option>System Check</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label>Details</label>
-                    <textarea class="form-control" rows="3"></textarea>
-                </div>
-                
-                <button type="submit" class="submit-btn">
-                    <i class="fas fa-search"></i> Run Query
-                </button>
-            </form>
         </div>
     </div>
 

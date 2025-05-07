@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize AdamAI without any interactive elements
-adam = AdamAI(quran_db=QuranDatabase, user_id=os.getenv("USER_ID", "web_user"))
+adam = AdamAI(quran_db=QuranDatabase(), user_id="web_user")
 
 @app.route('/api/query', methods=['POST'])
 def handle_query():
@@ -26,6 +26,10 @@ def handle_query():
     except Exception as e:
         logger.error(f"Query error: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
+    
+@app.route('/ping')
+def ping():
+    return jsonify({"status": "alive", "db_connected": adam.quran_db.is_populated()})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000)

@@ -58,7 +58,7 @@ class DivineKnowledge:
         
         self.theme_hierarchies = {
             "creation": ["origin", "human", "clay", "shape"],
-            "mercy": ["forgive", "compassion", "repent"],
+            "mercy": ["forgive", "compassion", "repent", "mercy"],
             "prophets": ["messenger", "warner", "scripture"]
         }
     
@@ -122,6 +122,7 @@ class DivineKnowledge:
             - sources: Knowledge sources used
             - confidence: Initial confidence scores
         """
+              
         knowledge = {
             'verses': [],
             'themes': [],

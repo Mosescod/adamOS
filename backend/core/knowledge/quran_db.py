@@ -33,31 +33,32 @@ class QuranDatabase:
             raise RuntimeError("Could not open sacred knowledge repository") from e
 
     def _connect(self):
-        """Establish MongoDB connection with proper encoding"""
+        """Safe connection method"""
         try:
-            if "@" in self.db_uri.split("://")[1]:
-                protocol, rest = self.db_uri.split("://")
-                creds, host = rest.split("@")
-                username, password = creds.split(":")
-                encoded_pwd = urllib.parse.quote_plus(password)
-                self.db_uri = f"{protocol}://{username}:{encoded_pwd}@{host}"
-
+            # Handle empty/malformed URIs
+            if not self.db_uri or "://" not in self.db_uri:
+                self.db_uri = "mongodb://localhost:27017"
+            
+            # Extract protocol and remainder
+            protocol, rest = self.db_uri.split("://", 1)
+        
+            # Handle authentication if present
+            if "@" in rest:
+                auth_part, host_part = rest.split("@", 1)
+                username, password = auth_part.split(":", 1)
+                password = urllib.parse.quote_plus(password)
+                self.db_uri = f"{protocol}://{username}:{password}@{host_part}"
+            
             self.client = MongoClient(
                 self.db_uri,
-                serverSelectionTimeoutMS=5000,
-                connectTimeoutMS=10000
+                serverSelectionTimeoutMS=5000
             )
-            self.db = self.client[self.db_name]
-            
-            self.verses = self.db.verses
-            self.surahs = self.db.surahs
-            self.themes = self.db.themes
-            
-        except PyMongoError as e:
-            logger.error(f"Connection failed: {str(e)}")
-            raise
+            self.client.server_info()  # Test connection
+        except Exception as e:
+            raise RuntimeError(f"Connection failed: {str(e)}")
 
     def _initialize_collections(self):
+            
         """Ensure all collections exist with proper indexes"""
         collections = {
             'verses': [
@@ -216,6 +217,8 @@ class QuranDatabase:
             raise
 
     def __del__(self):
-        """Clean up MongoDB connection"""
-        if self.client:
-            self.client.close()
+        if hasattr(self, 'client') and self.client:
+            try:
+                self.client.close()
+            except:
+                pass 

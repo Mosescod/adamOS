@@ -36,7 +36,7 @@ class AdamAI:
         """Initialize all knowledge components"""
         try:
             # Initialize scanner
-            self.scanner = SacredScanner(self.quran_db)
+            self.scanner = SacredScanner(quran_db=self.quran_db)
             
             # Initialize other components
             self.mind = DivineKnowledge(self.quran_db)
@@ -68,6 +68,37 @@ class AdamAI:
             return "My knowledge fails me momentarily"
 
     def _process_query(self, question: str) -> str:
-        """Process query with proper error handling"""
-        # Your query processing logic here
-        pass
+        """Full query processing pipeline"""
+        try:
+            # Step 1: Check for direct prophetic responses
+            prophetic_response = self.prophetic_responses.respond(question)
+            if prophetic_response and "*kneads clay*" not in prophetic_response:
+                return prophetic_response
+        
+            # Step 2: Retrieve knowledge
+            knowledge = self.mind.retrieve_knowledge(question, {})
+        
+            # Step 3: Generate response with personality
+            if knowledge.get('verses'):
+                verse = knowledge['verses'][0]
+                return self.personality.generate_response(
+                    question=question,
+                    knowledge=verse['text'],
+                    mood=self.emotional_model.mood
+                )
+        
+            # Fallback to document knowledge
+            doc_response = self.synthesizer.query(question)
+            if doc_response:
+                return self.personality.generate_response(
+                    question=question,
+                    knowledge=doc_response,
+                    mood=self.emotional_model.mood
+                )
+            
+            # Ultimate fallback
+            return "*kneads clay* This truth hasn't been revealed to me yet"
+        
+        except Exception as e:
+            logger.error(f"Processing failed: {str(e)}", exc_info=True)
+            raise

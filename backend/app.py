@@ -15,11 +15,14 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
+adam = AdamAI
+
 app = Flask(__name__, static_folder='../frontend/static')
 CORS(app)
 
 def initialize_components():
     """Initialize with multiple fallback layers"""
+    print("Database status:", adam.quran_db.is_populated() if hasattr(adam, 'quran_db') else "NO DATABASE")
     try:
         user_id = os.getenv("USER_ID", "default_user")
         
@@ -51,16 +54,48 @@ except Exception as e:
     logger.critical(f"Fatal initialization error: {str(e)}")
     raise SystemExit("Could not start application")
 
+@app.route('/')
+def serve_index():
+    return send_from_directory('../frontend', 'index.html')
+
+# Frontend Routes
+@app.route('/homepage')
+def home():
+    return send_from_directory('../frontend', 'index.html')
+
+
+@app.route('/<page>')
+def serve_page(page):
+    valid_pages = ['adam', 'docs', 'noahq']
+    if page in valid_pages:
+        return send_from_directory('../frontend/pages', f'{page}.html')
+    return "Not Found", 404
+
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    return send_from_directory(
+        os.path.join(app.root_path, '../frontend/static'),
+        filename)
+
 @app.route('/api/query', methods=['POST'])
 def handle_query():
     try:
         data = request.get_json()
-        question = data.get('question', '')
+        question = data.get('question', '').strip()
+        
+        if not question:
+            return jsonify({
+                "response": "*molds clay* Speak, that I may hear your words..."
+            })
+            
         response = adam.query(question)
         return jsonify({"response": response})
+        
     except Exception as e:
         logger.error(f"API query failed: {str(e)}")
-        return jsonify({"error": "Internal server error"}), 500
+        return jsonify({
+            "response": "*crumbles clay* My connection to sacred knowledge falters..."
+        }), 200
 
 @app.route('/health')
 def health_check():
