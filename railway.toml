@@ -1,0 +1,9 @@
+[build]
+command = "pip install -r requirements.txt && python -m flask db upgrade"
+
+[deploy]
+start_command = "gunicorn app:app -b :${PORT} -w 4 -k uvicorn.workers.UvicornWorker"
+
+[variables]
+MONGODB_URI = "@mongo_uri"
+AUTO_LEARN = "true"

@@ -1,132 +1,112 @@
-from typing import Dict, List
-from .quran_db import QuranDatabase
-import logging
-from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np
+from typing import List, Dict
+from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-from scipy.sparse import csr_matrix
-import os
-from pymongo import MongoClient
+from .knowledge_db import KnowledgeDatabase, KnowledgeSource
+import logging
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 
 class SacredScanner:
-    def __init__(self, quran_db: QuranDatabase):
+    def __init__(self, knowledge_db: KnowledgeDatabase):
         """
-        Initialize scanner with required components.
-        
-        Args:
-            quran_db: Pre-configured QuranDatabase instance
+        Quran-prioritized knowledge scanner for AdamAI.
         """
-        if not isinstance(quran_db, QuranDatabase):
-            raise TypeError("quran_db must be a QuranDatabase instance")
-            
-        self.db = quran_db
-        self.vectorizer = TfidfVectorizer(
-            min_df=1,  # Lowered from 2 to catch more terms
-            max_df=0.8,
-            stop_words='english',
-            token_pattern=r'\b[a-zA-Z]+\b'
-        )
+        self.db = knowledge_db
+        self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
+        self.theme_hierarchy = {
+            'mercy': ['forgive', 'compassion', 'kindness'],
+            'comfort': ['lonely', 'sad', 'ease'],
+            'prophets': ['muhammad', 'isa', 'musa']
+        }
+        self._refresh_thematic_index()
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    def _refresh_thematic_index(self):
+        """Auto-build theme index from DB with Quran focus"""
         self.thematic_index = {}
-        self.theme_vectors = {}
-        
+        for theme in self.theme_hierarchy:
+            # Prioritize Quranic verses in thematic index
+            self.thematic_index[theme] = (
+                self.db.search(source=KnowledgeSource.QURAN, tags=[theme], limit=20) +
+                self.db.search(source=KnowledgeSource.BIBLE, tags=[theme], limit=5) +
+                self.db.search(source=KnowledgeSource.BOOK, tags=[theme], limit=3)
+            )
+        logger.info(f"Thematic index built with {sum(len(v) for v in self.thematic_index.values())} entries")
+
+    def scan(self, question: str, context: Dict = None) -> Dict[str, List[Dict]]:
+        """
+        Quran-first knowledge retrieval.
+        Returns: {'verses': [], 'wisdom': []} (sources anonymized)
+        """
         try:
-            self._initialize()
-        except Exception as e:
-            logger.critical(f"Scanner initialization failed: {str(e)}")
-            raise RuntimeError("Could not initialize SacredScanner") from e
-
-    def _initialize(self) -> None:
-        """Core initialization sequence"""
-        # 1. Verify database connection
-        if not self.db.is_populated():
-            logger.warning("Database not populated - loading minimal data")
-            self._load_minimal_data()
-
-        # 2. Build mandatory themes
-        required_themes = {
-            'creation': ['create', 'made', 'form'],
-            'mercy': ['mercy', 'compassion', 'forgive'],
-            'prophets': ['prophet', 'messenger', 'apostle']
-        }
-        
-        # 3. Ensure themes exist
-        existing_themes = self.db.themes.distinct("theme")
-        for theme, keywords in required_themes.items():
-            if theme not in existing_themes:
-                self.db.add_theme(theme, keywords)
-
-        # 4. Build thematic index
-        self.thematic_index = {
-            theme: self.db.get_verses_by_theme(theme)
-            for theme in required_themes
-        }
-
-        # 5. Precompute vectors
-        self.theme_vectors = {
-            theme: self.vectorizer.fit_transform([v['text'] for v in verses])
-            for theme, verses in self.thematic_index.items()
-        }
-
-    def _load_minimal_data(self) -> None:
-        """Load essential verses if database is empty"""
-        minimal_verses = [
-            {
-                "surah_number": 1,
-                "ayah_number": 1,
-                "text": "In the name of God, the Most Gracious, the Most Merciful",
-                "translation": "en.sahih"
-            },
-            {
-                "surah_number": 2,
-                "ayah_number": 30,
-                "text": "I will create a vicegerent on earth",
-                "translation": "en.sahih"
+            # 1. Hybrid Search
+            query_embedding = self.embedder.encode(question)
+            semantic_results = {
+                'quran': self.db.search(
+                    source=KnowledgeSource.QURAN,
+                    vector=query_embedding,
+                    similarity_threshold=0.7
+                ),
+                'other': self.db.search(
+                    query=question,
+                    exclude_sources=[KnowledgeSource.QURAN],
+                    limit=5
+                )
             }
-        ]
-        self.db.verses.insert_many(minimal_verses)
 
-    def semantic_search(self, query: str, theme: str = None) -> List[Dict]:
-        """
-        Search verses by semantic similarity.
-        
-        Args:
-            query: User's question
-            theme: Optional theme to restrict search
-            
-        Returns:
-            List of matching verses with scores
-        """
-        if not self.thematic_index:
-            raise RuntimeError("Thematic index not initialized")
-            
-        if theme and theme not in self.theme_vectors:
-            raise ValueError(f"Theme '{theme}' not found in index")
-            
-        # If no theme specified, search all themes
-        themes_to_search = [theme] if theme else self.theme_vectors.keys()
-        
-        results = []
-        query_vec = self.vectorizer.transform([query])
-        
-        for theme in themes_to_search:
-            similarities = cosine_similarity(
-                query_vec,
-                self.theme_vectors[theme]
-            )[0]
-            
-            for idx, score in enumerate(similarities):
-                if score > 0.3:  # Minimum similarity threshold
-                    verse = self.thematic_index[theme][idx]
-                    results.append({
-                        **verse,
-                        "score": score,
-                        "theme": theme
-                    })
-        
-        return sorted(results, key=lambda x: x['score'], reverse=True)[:3]
+            # 2. Expand with Quranic themes
+            expanded = {
+                'quran': semantic_results['quran'] + self._expand_quran_themes(question),
+                'other': semantic_results['other']
+            }
 
-    def is_ready(self) -> bool:
-        """Check if scanner is properly initialized"""
-        return bool(self.thematic_index) and bool(self.theme_vectors)
+            # 3. Filter conflicts (non-Quran matches must not contradict Quran)
+            filtered = {
+                'quran': expanded['quran'],
+                'other': [
+                    item for item in expanded['other']
+                    if not self._contradicts_quran(item, expanded['quran'])
+                ]
+            }
+
+            return {
+                'verses': filtered['quran'][:3],  # Always prioritize Quran
+                'wisdom': filtered['other'][:2]   # Secondary sources
+            }
+
+        except Exception as e:
+            logger.error(f"Scan error: {str(e)}")
+            return {'verses': [], 'wisdom': []}
+
+    def _expand_quran_themes(self, question: str) -> List[Dict]:
+        """Find related Quranic verses through theme hierarchy"""
+        related_verses = []
+        for theme, keywords in self.theme_hierarchy.items():
+            if any(keyword in question.lower() for keyword in keywords):
+                related_verses.extend(self.thematic_index.get(theme, []))
+        return related_verses
+
+    def _contradicts_quran(self, item: Dict, quran_verses: List[Dict]) -> bool:
+        """
+        Check if non-Quran content contradicts Quranic verses.
+        Simple keyword-based contradiction detection.
+        """
+        if not quran_verses:
+            return False
+            
+        quran_keywords = set()
+        for verse in quran_verses:
+            quran_keywords.update(verse.get('tags', []))
+        
+        anti_keywords = {
+            'mercy': ['harsh', 'unforgiving'],
+            'comfort': ['despair', 'hopeless']
+        }
+        
+        for theme in quran_keywords:
+            if any(bad in item['content'].lower() 
+                   for bad in anti_keywords.get(theme, [])):
+                return True
+        return False

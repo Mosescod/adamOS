@@ -1,104 +1,228 @@
-from core.knowledge.quran_db import QuranDatabase
+from typing import Dict, List, Optional
+from config import Config
+from core.knowledge.knowledge_db import KnowledgeDatabase
 from core.knowledge.sacred_scanner import SacredScanner
-from core.knowledge.mind_integrator import DivineKnowledge
-from core.general_personality import AdamPersonality
+from core.knowledge.synthesizer import UniversalSynthesizer
 from core.personality.emotional_model import EmotionalModel
-from core.prophetic_responses import AdamRules
-from core.knowledge.loader import DocumentLoader
-from core.knowledge.document_db import DocumentKnowledge
-from core.knowledge.synthesizer import DocumentSynthesizer
+from core.personality.general_personality import GeneralPersonality
+from core.learning.memory_system import MemoryDatabase
+from core.learning.interactive_learner import InteractiveLearner
+from core.knowledge.mind_integrator import MindIntegrator
+from core.knowledge.loader import ThemeGenerator
 import logging
-import os
-from typing import Optional
+import uuid
+from datetime import datetime
+import sys 
+import random
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 class AdamAI:
-    def __init__(self, quran_db: Optional[QuranDatabase] = None, user_id: str = "default"):
-        try:
-            self.user_id = user_id
-            self.quran_db = self._initialize_database(quran_db)
-            self._initialize_knowledge_components()
-            
-        except Exception as e:
-            logger.critical(f"Creation failed: {str(e)}")
-            raise RuntimeError("Failed to create AdamAI instance") from e
+    def __init__(self, config: Dict):
+        """
+        Initialize Adam's complete AI system.
+        
+        Args:
+            config: {
+                "mongodb_uri": "mongodb://localhost:27017",
+                "analysis_interval": 5,  # Analyze every Nth conversation
+                "enable_learning": True
+            }
+        """
+        # Initialize core components
+        self.knowledge_db = KnowledgeDatabase(config["MONGODB_URI"])
+        self.memory_db = MemoryDatabase(config["MONGODB_URI"])
+        
+        # Functional modules
+        self.scanner = SacredScanner(self.knowledge_db)
+        self.synthesizer = UniversalSynthesizer(self.knowledge_db)
+        self.emotion_detector = EmotionalModel()
+        self.personality = GeneralPersonality()
+        self.learner = InteractiveLearner(self.memory_db)
+        self.mind = MindIntegrator()
+        
+        # Configuration
+        self.analysis_interval = config.get("analysis_interval", 5)
+        self.enable_learning = config.get("enable_learning", True)
+        
+        self.theme_generator = ThemeGenerator(self.knowledge_db)
+        self._initialize_autonomous_learning()
 
-    def _initialize_database(self, quran_db: Optional[QuranDatabase]) -> QuranDatabase:
-        """Initialize database with fallback"""
-        try:
-            return quran_db if quran_db is not None else QuranDatabase()
-        except Exception as e:
-            logger.error(f"Database initialization failed: {str(e)}")
-            raise RuntimeError("Could not connect to knowledge base") from e
+        logger.info("AdamAI system initialized")
+    
+    def _initialize_autonomous_learning(self):
+        """Start background learning processes"""
+        from threading import Thread
+        import time
+        
+        def learning_loop():
+            while True:
+                self.run_learning_cycle()
+                time.sleep(3600)
 
-    def _initialize_knowledge_components(self):
-        """Initialize all knowledge components"""
-        try:
-            # Initialize scanner
-            self.scanner = SacredScanner(quran_db=self.quran_db)
+        Thread(target=learning_loop, daemon=True).start()
+
+    def run_learning_cycle(self):
+        """Execute full learning cycle"""
+        # Auto-generate themes
+        self.themes = self.theme_generator.generate_themes()
+        
+        # Analyze recent conversations
+        unanalyzed = self.memory_db.get_unanalyzed_conversations()
+        for conv in unanalyzed:
+            self.learner.analyze_conversation(conv["_id"])
+        
+        # Update knowledge embeddings
+        self.scanner.update_embeddings()
+
+    def respond(self, user_id: str, message: str) -> str:
+        """
+        Main entry point for generating responses.
+        
+        Args:
+            user_id: Unique user identifier
+            message: User's input message
             
-            # Initialize other components
-            self.mind = DivineKnowledge(self.quran_db)
-            documents = DocumentLoader.load_from_json("core/knowledge/data/documents.json")
-            self.doc_knowledge = DocumentKnowledge()
-            self.synthesizer = DocumentSynthesizer(
-                documents=documents,
-                quran_db=self.quran_db,
-                doc_searcher=self.doc_knowledge
+        Returns:
+            Adam's response with clay metaphors
+        """
+        try:
+            # 1. Safety and Emotion Analysis
+            safety = self.personality.assess(message)
+            if safety["is_offensive"]:
+                return "*sets clay aside* I cannot respond to harmful words."
+                
+            emotion = self.emotion_detector.analyze(message)
+            
+            # 2. Knowledge Retrieval
+            scan_results = self.scanner.scan(
+                message,
+                context={
+                    "user_id": user_id,
+                    "mood": emotion["mood_score"]
+                }
             )
             
-            self.personality = AdamPersonality(
-                username=self.user_id,
-                synthesizer=self.synthesizer
+            # 3. Memory Context
+            memory_context = self._get_memory_context(user_id, message)
+            
+            # 4. Knowledge Synthesis
+            synthesized = self.synthesizer.blend(
+                verses=scan_results["verses"],
+                wisdom=scan_results["wisdom"],
+                context={
+                    "memory": memory_context,
+                    "emotion": emotion
+                }
             )
-            self.emotional_model = EmotionalModel(self.user_id)
-            self.prophetic_responses = AdamRules()
+            
+            # 5. Response Generation
+            response = self.mind.integrate(
+                synthesized,
+                user_context={
+                    "user_id": user_id,
+                    "mood": emotion["mood_score"],
+                    "is_offensive": safety["is_offensive"]
+                }
+            )
+            
+            # 6. Log Interaction
+            self._log_interaction(user_id, message, response)
+            
+            # 7. Periodic Learning
+            if self.enable_learning:
+                self._run_learning_cycle(user_id)
+            
+            return response
             
         except Exception as e:
-            logger.error(f"Knowledge initialization failed: {str(e)}")
-            raise RuntimeError("Could not form Adam's knowledge") from e
+            logger.error(f"Response generation failed: {str(e)}")
+            return "*clay crumbles* My knowledge fails me momentarily."
 
-    def query(self, question: str) -> str:
-        """Handle user query with error handling"""
-        try:
-            return self._process_query(question)
-        except Exception as e:
-            logger.error(f"Query failed: {str(e)}")
-            return "My knowledge fails me momentarily"
+    def _get_memory_context(self, user_id: str, message: str) -> Dict:
+        """
+        Retrieve relevant conversation memories.
+        Returns: {
+            "related_topics": List[str],
+            "past_responses": List[Dict]
+        }
+        """
+        # Get summaries of past conversations
+        summaries = self.memory_db.find_related_summaries(
+            user_id=user_id,
+            message=message,
+            limit=3
+        )
+        
+        return {
+            "related_topics": list(set(
+                topic 
+                for summary in summaries 
+                for topic in summary["topics"]
+            )),
+            "past_responses": [
+                {
+                    "content": s["summary"],
+                    "timestamp": s["timestamp"]
+                } 
+                for s in summaries
+            ]
+        }
 
-    def _process_query(self, question: str) -> str:
-        """Full query processing pipeline"""
-        try:
-            # Step 1: Check for direct prophetic responses
-            prophetic_response = self.prophetic_responses.respond(question)
-            if prophetic_response and "*kneads clay*" not in prophetic_response:
-                return prophetic_response
-        
-            # Step 2: Retrieve knowledge
-            knowledge = self.mind.retrieve_knowledge(question, {})
-        
-            # Step 3: Generate response with personality
-            if knowledge.get('verses'):
-                verse = knowledge['verses'][0]
-                return self.personality.generate_response(
-                    question=question,
-                    knowledge=verse['text'],
-                    mood=self.emotional_model.mood
-                )
-        
-            # Fallback to document knowledge
-            doc_response = self.synthesizer.query(question)
-            if doc_response:
-                return self.personality.generate_response(
-                    question=question,
-                    knowledge=doc_response,
-                    mood=self.emotional_model.mood
-                )
-            
-            # Ultimate fallback
-            return "*kneads clay* This truth hasn't been revealed to me yet"
-        
-        except Exception as e:
-            logger.error(f"Processing failed: {str(e)}", exc_info=True)
-            raise
+    def _log_interaction(self, user_id: str, user_msg: str, adam_response: str):
+        """Store conversation in memory"""
+        conversation_id = self.memory_db.log_conversation(
+            user_id=user_id,
+            messages=[
+                {"role": "user", "content": user_msg},
+                {"role": "adam", "content": adam_response}
+            ]
+        )
+        logger.info(f"Logged conversation {conversation_id}")
+
+    def _run_learning_cycle(self, user_id: str):
+        """Periodically analyze conversations"""
+        if random.random() < (1 / self.analysis_interval):
+            logger.info("Running learning cycle...")
+            unanalyzed = self.memory_db.get_unanalyzed_conversations(
+                user_id=user_id,
+                limit=3
+            )
+            for conv in unanalyzed:
+                self.learner.analyze_conversation(conv["_id"])
+
+    def add_knowledge(self, content: str, source: str, metadata: Dict = None):
+        """Manually add knowledge to Adam's database"""
+        self.knowledge_db.store_knowledge(
+            content=content,
+            source=source,
+            metadata=metadata or {}
+        )
+        logger.info(f"Added new {source} knowledge: {content[:50]}...")
+
+# Example Configuration
+DEFAULT_CONFIG = {
+    "mongodb_uri": "mongodb://localhost:27017",
+    "analysis_interval": 5,
+    "enable_learning": True
+}
+
+if __name__ == "__main__":
+    # Initialize Adam
+    adam = AdamAI(DEFAULT_CONFIG)
+    
+    # Example conversation
+    user_id = f"user_{uuid.uuid4()}"
+    
+    print("User: What does Islam say about forgiveness?")
+    response = adam.respond(user_id, "What does Islam say about forgiveness?")
+    print("Adam:", response)
+    
+    print("\nUser: Can you remind me about mercy?")
+    response = adam.respond(user_id, "Can you remind me about mercy?")
+    print("Adam:", response)

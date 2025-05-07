@@ -56,16 +56,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     // Fetch response from your Python backend
-    async function fetchAdamResponse(query) {
-        const response = await fetch('http://localhost:8000/api/query', {  // Update port if needed
+    async function askAdam(message) {
+        const response = await fetch('/api/chat', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question: query })
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                user_id: getUserId(),
+                message: message
+            })
         });
-        
-        if (!response.ok) throw new Error("API failed");
-        const data = await response.json();
-        return data.response;  // Returns Adam's formatted response
+        return await response.json();
     }
     
     // Fallback responses if API fails (in Adam's style)

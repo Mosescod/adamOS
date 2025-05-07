@@ -1,78 +1,112 @@
-# core/learning/interactive_learner.py
-import re
-from typing import Dict, List, Tuple
+import uuid
 from datetime import datetime
-from pathlib import Path
-import json
+from typing import Dict, List, Optional
+from pymongo import MongoClient, ASCENDING
+from transformers import pipeline
+from .memory_system import MemoryDatabase
+import random
+import numpy as np
+import logging 
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class InteractiveLearner:
-    def __init__(self, storage_path: str = "core/learning/unknown_questions.json"):
-        self.storage_path = Path(storage_path)
-        self.unknown_questions = self._load_unknown_questions()
-        self.follow_up_questions = [
-            "Can you tell me more about what you mean?",
-            "How does this relate to your understanding of creation?",
-            "What makes you ask about this particular matter?"
-        ]
+    def __init__(self, memory_db: MemoryDatabase):
+        self.memory = memory_db
+        self.summarizer = pipeline(
+            "summarization", 
+            model="facebook/bart-large-cnn",
+            device="cpu"  # Change to "cuda" if using GPU
+        )
+        self.sentiment = pipeline(
+            "text-classification",
+            model="finiteautomata/bertweet-base-sentiment-analysis",
+            device="cpu"
+        )
+        self.theme_keywords = {
+            'mercy': ['forgive', 'mercy', 'compassion', 'pardon'],
+            'prophets': ['muhammad', 'isa', 'musa', 'prophet'],
+            'prayer': ['salah', 'pray', 'worship', 'dua'],
+            'afterlife': ['hereafter', 'judgment', 'paradise', 'hell']
+        }
+
+    def analyze_conversation(self, conv_id: str) -> Optional[Dict]:
+        """Generate and store conversation insights"""
+        conv = self.memory.conversations.find_one({"_id": conv_id})
+        if not conv:
+            return None
+
+        # Prepare conversation text
+        dialog_text = self._prepare_conversation_text(conv['messages'])
         
-    def _load_unknown_questions(self) -> Dict:
-        """Load previously unknown questions"""
-        if not self.storage_path.exists():
-            return {}
-            
         try:
-            with open(self.storage_path, 'r') as f:
-                return json.load(f)
-        except:
-            return {}
-
-    def _save_unknown_questions(self) -> None:
-        """Save unknown questions to file"""
-        self.storage_path.parent.mkdir(exist_ok=True)
-        with open(self.storage_path, 'w') as f:
-            json.dump(self.unknown_questions, f, indent=2)
-
-    def process_unknown_question(self, question: str) -> Tuple[str, bool]:
-        """
-        Handle unknown questions and track them
-        Returns (response, should_request_followup)
-        """
-        question_lower = question.lower().strip()
-        
-        # Check if we've seen this question before
-        if question_lower in self.unknown_questions:
-            count = self.unknown_questions[question_lower]['count'] + 1
-            last_asked = datetime.now().isoformat()
-            self.unknown_questions[question_lower] = {
-                'count': count,
-                'last_asked': last_asked,
-                'first_asked': self.unknown_questions[question_lower]['first_asked']
+            # Generate summary
+            summary = self._generate_summary(dialog_text)
+            
+            # Analyze sentiment
+            sentiment = self._analyze_sentiment(summary)
+            
+            # Extract topics
+            topics = self._extract_topics(dialog_text)
+            
+            # Prepare analysis data
+            analysis = {
+                "conv_id": conv_id,
+                "user_id": conv["user_id"],
+                "summary": summary,
+                "sentiment": sentiment["label"],
+                "sentiment_score": float(sentiment["score"]),
+                "topics": topics,
+                "timestamp": datetime.utcnow()
             }
             
-            if count == 1:
-                return ("*molds clay* I've pondered your question since last we spoke...", False)
-            elif count == 2:
-                return ("*touches earth* This matter still troubles my understanding", True)
-            else:
-                return ("*bows head* I still lack wisdom on this topic", False)
-        else:
-            # New question
-            self.unknown_questions[question_lower] = {
-                'count': 1,
-                'first_asked': datetime.now().isoformat(),
-                'last_asked': datetime.now().isoformat()
-            }
-            self._save_unknown_questions()
-            return ("*kneads clay thoughtfully* This I must contemplate...", True)
+            # Store results
+            self.memory.store_summary(analysis)
+            self.memory.mark_as_analyzed(conv_id)
+            
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"Analysis failed for {conv_id}: {str(e)}")
+            return None
 
-    def get_follow_up_question(self) -> str:
-        """Get a relevant follow-up question"""
-        return random.choice([
-            "*tilts head* " + q for q in self.follow_up_questions
-        ])
+    def _prepare_conversation_text(self, messages: List[Dict]) -> str:
+        """Convert message history to text"""
+        return "\n".join(
+            f"{m['role'].capitalize()}: {m['content']}" 
+            for m in messages
+        )
 
-    def extract_keywords(self, question: str) -> List[str]:
-        """Extract potential learning keywords from question"""
-        stop_words = {'the', 'and', 'what', 'how', 'why', 'when', 'where', 'you'}
-        words = re.findall(r'\b[a-z]+\b', question.lower())
-        return [word for word in words if word not in stop_words and len(word) > 3]
+    def _generate_summary(self, text: str) -> str:
+        """Generate conversation summary"""
+        if len(text.split()) < 50:  # Skip very short conversations
+            return "Brief discussion"
+        
+        result = self.summarizer(
+            text,
+            max_length=130,
+            min_length=30,
+            do_sample=False
+        )
+        return result[0]['summary_text']
+
+    def _analyze_sentiment(self, text: str) -> Dict:
+        """Analyze emotional tone"""
+        result = self.sentiment(text)
+        return {
+            "label": result[0]['label'],
+            "score": result[0]['score']
+        }
+
+    def _extract_topics(self, text: str) -> List[str]:
+        """Identify key discussion topics"""
+        text_lower = text.lower()
+        topics = []
+        
+        for theme, keywords in self.theme_keywords.items():
+            if any(kw in text_lower for kw in keywords):
+                topics.append(theme)
+                
+        return topics if topics else ["general"]

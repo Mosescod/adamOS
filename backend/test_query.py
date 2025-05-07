@@ -1,8 +1,8 @@
 from main import AdamAI
-from core.knowledge.quran_db import QuranDatabase
+from core.knowledge.knowledge_db import KnowledgeDatabase
 
 # Initialize Adam
-adam = AdamAI(quran_db=QuranDatabase(), user_id="test_user")
+adam = AdamAI(KnowledgeDatabase(), user_id="test_user")
 
 # Test queries
 print("=== Testing Query ===")
