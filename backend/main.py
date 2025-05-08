@@ -23,7 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class AdamAI:
-    def __init__(self, config: Dict):
+    def __init__(self, config):
         """
         Initialize Adam's complete AI system.
         
@@ -34,9 +34,13 @@ class AdamAI:
                 "enable_learning": True
             }
         """
+        config.verify()
+
         # Initialize core components
-        self.knowledge_db = KnowledgeDatabase(config.MONGODB_URI)
-        self.memory_db = MemoryDatabase(config.MONGODB_URI)
+        self.mongodb_uri = config.MONGODB_URI
+        print(f"Using MongoDB URI: {self.mongodb_uri}")
+        self.knowledge_db = KnowledgeDatabase(self.mongodb_uri)
+        self.memory_db = config.MONGODB_URI
         
         # Functional modules
         self.scanner = SacredScanner(self.knowledge_db)
@@ -47,8 +51,8 @@ class AdamAI:
         self.mind = MindIntegrator()
         
         # Configuration
-        self.analysis_interval = config.get("analysis_interval", 5)
-        self.enable_learning = config.get("enable_learning", True)
+        self.analysis_interval = config.ANALYSIS_INTERVAL
+        self.enable_learning = config.ENABLE_LEARNING
         
         self.theme_generator = ThemeGenerator(self.knowledge_db)
         self._initialize_autonomous_learning()

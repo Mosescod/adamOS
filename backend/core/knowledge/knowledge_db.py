@@ -1,16 +1,23 @@
 import os
+import json
 from typing import Dict, List, Optional, Union
+from datetime import datetime
+from pymongo import monitoring
 import logging
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from pymongo.errors import PyMongoError
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 import requests
 import urllib.parse
 import time
+from dotenv import load_dotenv
 from dataclasses import dataclass
 from enum import Enum
+from pymongo.errors import ConnectionFailure, OperationFailure
+from motor.motor_asyncio import AsyncIOMotorClient 
 
 logger = logging.getLogger(__name__)
+load_dotenv()
 
 class KnowledgeSource(Enum):
     QURAN = "quran"
@@ -27,123 +34,252 @@ class KnowledgeEntry:
     vector: Optional[List[float]] = None
 
 class KnowledgeDatabase:
-    def __init__(self, db_uri: str = None, db_name: str = "adam_knowledge"):
-        self.db_uri = db_uri or os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-        self.db_name = db_name
+    def __init__(self, db_uri: str, db_name: str):
+        self.db_uri = os.getenv("MONGODB_URI")
+        self.db_name = os.getenv("DB_NAME")
         self.client = None
         self.db = None
         self.entries = None
         self.indexes = None
-        
-        try:
-            self._connect()
-            self._initialize_collections()
-        except Exception as e:
-            logger.critical(f"Database initialization failed: {str(e)}")
-            raise RuntimeError("Could not open knowledge repository") from e
+        self.connection_pool_size = 10  
+        self.retry_writes = True  
+        self.max_pool_size = 100  
+        self.min_pool_size = 5
+    
+        self._connect()
 
     def _connect(self):
-        """Safe connection method with retries"""
-        @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+        """Safe connection method with retries, connection pooling, and comprehensive error handling"""
+        @retry(stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=4, max=10),
+            retry=(
+                    retry_if_exception_type(ConnectionFailure) |
+                    retry_if_exception_type(OperationFailure) |
+                    retry_if_exception_type(TimeoutError)
+            ),
+            before_sleep=lambda retry_state: logger.warning(
+                f"Retry attempt {retry_state.attempt_number} due to {retry_state.outcome.exception()}"
+            ))
         def connect_with_retry():
             try:
-                if not self.db_uri or "://" not in self.db_uri:
-                    self.db_uri = "mongodb://localhost:27017"
-                
-                protocol, rest = self.db_uri.split("://", 1)
+                # Add debug print to see the actual URI being used
+                print(f"Attempting to connect with URI: {self.db_uri}")
             
-                if "@" in rest:
-                    auth_part, host_part = rest.split("@", 1)
-                    username, password = auth_part.split(":", 1)
-                    password = urllib.parse.quote_plus(password)
-                    self.db_uri = f"{protocol}://{username}:{password}@{host_part}"
+                if not self.db_uri or not isinstance(self.db_uri, str):
+                    raise ValueError("MongoDB URI must be a string")
+            
+                if not self.db_uri.startswith("mongodb://"):
+                    self.db_uri = "mongodb://" + self.db_uri
+                    print(f"Modified URI to: {self.db_uri}")
+                    
+                # Parse and validate connection string
+                if not self.db_uri or "://" not in self.db_uri:
+                    raise ValueError("Invalid MongoDB connection URI format")
                 
-                self.client = MongoClient(
-                    self.db_uri,
-                    serverSelectionTimeoutMS=5000,
-                    connectTimeoutMS=10000,
-                    socketTimeoutMS=10000
-                )
-                self.client.server_info()  # Test connection
+                # Handle special characters in password
+                if "@" in self.db_uri:
+                    protocol, rest = self.db_uri.split("://", 1)
+                    if ":" in rest.split("@")[0]:  # Contains credentials
+                        auth_part, host_part = rest.split("@", 1)
+                        username, password = auth_part.split(":", 1)
+                        password = urllib.parse.quote_plus(password)
+                        self.db_uri = f"{protocol}://{username}:{password}@{host_part}"
+
+                # Connection options
+                connect_opts = {
+                    "serverSelectionTimeoutMS": 5000,
+                    "connectTimeoutMS": 10000,
+                    "socketTimeoutMS": 30000,  # Increased for complex queries
+                    "maxPoolSize": self.max_pool_size,
+                    "minPoolSize": 5,  # New: maintain minimum connections
+                    "retryWrites": self.retry_writes,
+                    "retryReads": True,  # New: enable read retries
+                    "readPreference": "secondaryPreferred",  # New: better read distribution
+                    "heartbeatFrequencyMS": 10000,  # New: frequent health checks
+                    "appname": "AdamAI-KnowledgeDB"  # New: identify in MongoDB logs
+                }
+
+                self.client = MongoClient(self.db_uri, **connect_opts)
+            
+                # Test connection with more comprehensive check
+                db_status = self.client.admin.command('ping')
+                server_info = self.client.admin.command('serverStatus')
+            
+                if not db_status.get('ok', 0) == 1:
+                    raise ConnectionFailure("MongoDB ping failed")
+                
+                # Verify we can actually access our target database
                 self.db = self.client[self.db_name]
                 self.entries = self.db.entries
                 self.indexes = self.db.indexes
-            except Exception as e:
-                logger.error(f"Connection attempt failed: {str(e)}")
+            
+                # Test basic write operation
+                test_doc = {"_test": datetime.utcnow(), "connection_check": True}
+                self.entries.insert_one(test_doc)
+                self.entries.delete_one({"_test": {"$exists": True}})
+            
+                logger.info(
+                    f"Connected to MongoDB {server_info['host']} "
+                    f"(v{server_info['version']}) with pool size {self.max_pool_size}"
+                )
+            
+                # Register event listeners
+                self._register_event_listeners()
+            
+            except (ConnectionFailure, OperationFailure, ValueError) as e:
+                logger.error(f"Connection attempt failed: {str(e)}", exc_info=True)
                 raise
+            except Exception as e:
+                logger.critical(f"Unexpected connection error: {str(e)}", exc_info=True)
+                raise ConnectionFailure(f"Unexpected error: {str(e)}") from e
 
         connect_with_retry()
 
+    def _register_event_listeners(self):
+        """Register MongoDB event listeners for monitoring"""
+        def command_started(event):
+            logger.debug(f"MongoDB command started: {event.command_name}")
+
+        def command_succeeded(event):
+            logger.debug(f"MongoDB command succeeded: {event.command_name} in {event.duration_micros}μs")
+
+        def command_failed(event):
+            logger.error(f"MongoDB command failed: {event.command_name} with {event.failure}")
+
+        self.client.add_event_listener(command_started)
+        self.client.add_event_listener(command_succeeded)
+        self.client.add_event_listener(command_failed)
+        logger.info("Registered MongoDB event listeners")
+
+    def is_healthy(self) -> bool:
+        """Check if database connection is healthy"""
+        try:
+            self.client.admin.command('ping')
+            return True
+        except Exception as e:
+            logger.warning(f"Health check failed: {str(e)}")
+            return False
+
     def _initialize_collections(self):
         """Ensure all collections exist with proper indexes"""
-        collections = {
+        collections_config = {
             'entries': [
                 [
                     ("source", ASCENDING),
                     ("metadata.title", ASCENDING),
-                    ("metadata.author", ASCENDING)
+                    ("metadata.author", ASCENDING),
+                    ("created_at", DESCENDING)  # New
                 ],
-                {'unique': False}
+                {'unique': False, 'background': True}  # Background indexing
             ],
             'indexes': [
                 [
                     ("knowledge_id", ASCENDING),
                     ("index_type", ASCENDING),
-                    ("tags", ASCENDING)
+                    ("tags", ASCENDING),
+                    ("timestamp", DESCENDING)  # New
                 ],
-                {'unique': False}
+                {'unique': False, 'background': True}
+            ],
+            'embeddings': [  # New collection for vector search
+                [
+                    ("vector", "text"),
+                    ("knowledge_id", ASCENDING)
+                ],
+                {'unique': True}
             ]
         }
-        
-        for col_name, (index_fields, index_options) in collections.items():
+    
+        for col_name, (index_fields, index_options) in collections_config.items():
             if col_name not in self.db.list_collection_names():
                 self.db.create_collection(col_name)
                 logger.info(f"Created collection: {col_name}")
-            
+        
             collection = getattr(self.db, col_name)
-            collection.create_index(index_fields, **index_options)
+            if not self._index_exists(collection, index_fields):
+                collection.create_index(index_fields, **index_options)
 
-    def store_knowledge(self, source: KnowledgeSource, content: Union[str, List[str]], metadata: Dict) -> List[str]:
-        """
-        Store knowledge content with metadata
-        Returns list of inserted IDs
-        """
-        try:
-            if isinstance(content, str):
-                content = [content]
-            
-            entries_to_insert = []
-            for idx, text in enumerate(content):
-                entry = {
-                    "source": source.value,
-                    "content": text,
-                    "metadata": metadata,
-                    "created_at": time.time(),
-                    "modified_at": time.time()
+    def _index_exists(self, collection, fields) -> bool:
+        """Check if an index already exists"""
+        existing = collection.index_information()
+        field_keys = [f[0] for f in fields]
+        return any(set(field_keys) == set(idx['key'].keys()) for idx in existing.values())
+
+    def store_knowledge(self, source: KnowledgeSource, content: Union[str, List[str]],
+                        metadata: Dict, version: str = "1.0") -> List[str]:
+        """Store knowledge content with versioning"""
+        
+        if isinstance(content, str):
+            content = [content]
+        
+        entries_to_insert = []
+        for idx, text in enumerate(content):
+            entry = {
+                "source": source.value,                    "content": text,
+                "metadata": metadata,
+                "version": version,  # New
+                "created_at": time.time(),
+                "modified_at": time.time(),
+                "is_current": True  # New
                 }
-                
-                # Handle special metadata for different sources
-                if source == KnowledgeSource.QURAN:
-                    entry["metadata"]["type"] = "verse"
-                elif source == KnowledgeSource.BIBLE:
-                    entry["metadata"]["type"] = "verse"
-                
-                entries_to_insert.append(entry)
             
-            # Insert in batches
-            batch_size = 100
-            inserted_ids = []
-            for i in range(0, len(entries_to_insert), batch_size):
-                result = self.entries.insert_many(entries_to_insert[i:i+batch_size])
-                inserted_ids.extend(result.inserted_ids)
-                time.sleep(0.1)
-            
-            logger.info(f"Stored {len(inserted_ids)} entries from {source.value}")
-            return inserted_ids
-            
+            entries_to_insert.append(entry)
+        
+        # Insert in batches
+        batch_size = 100
+        inserted_ids = []
+        for i in range(0, len(entries_to_insert), batch_size):
+            result = self.entries.insert_many(entries_to_insert[i:i+batch_size])
+            inserted_ids.extend(result.inserted_ids)
+            time.sleep(0.1)
+        
+        logger.info(f"Stored {len(inserted_ids)} entries from {source.value} v{version}")
+        return inserted_ids
+        
+    def update_knowledge(self, knowledge_id: str, new_content: str, 
+                    new_metadata: Dict = None, new_version: str = None):
+        """Update knowledge entry with version control"""
+        try:
+            # Mark old version as not current
+            self.entries.update_one(
+                {"_id": knowledge_id},
+                {"$set": {"is_current": False}}
+            )
+        
+            # Get old entry to copy fields
+            old_entry = self.entries.find_one({"_id": knowledge_id})
+            if not old_entry:
+                raise ValueError("Knowledge entry not found")
+        
+            # Create new version
+            new_version = new_version or self._increment_version(old_entry.get("version", "1.0"))
+        
+            new_entry = {
+                "source": old_entry["source"],
+                "content": new_content,
+                "metadata": new_metadata or old_entry["metadata"],
+                "version": new_version,
+                "created_at": time.time(),
+                "modified_at": time.time(),
+                "is_current": True,
+                "previous_version": knowledge_id  # Track version chain
+            }
+        
+            new_id = self.entries.insert_one(new_entry).inserted_id
+            logger.info(f"Updated knowledge {knowledge_id} to version {new_version}")
+            return new_id
+        
         except Exception as e:
-            logger.error(f"Failed to store knowledge: {str(e)}")
+            logger.error(f"Failed to update knowledge: {str(e)}")
             raise
+
+    def _increment_version(self, current_version: str) -> str:
+        """Simple version incrementer (1.0 -> 1.1)"""
+        try:
+            major, minor = current_version.split('.')
+            return f"{major}.{int(minor)+1}"
+        except:
+            return "1.1"
 
     def index_content(self, knowledge_id: str, index_type: str, tags: List[str], vector: Optional[List[float]] = None):
         """
@@ -171,6 +307,35 @@ class KnowledgeDatabase:
         except Exception as e:
             logger.error(f"Failed to create index: {str(e)}")
             raise
+
+    def vector_search(self, query_vector: List[float], limit: int = 5) -> List[Dict]:
+        """Search using vector similarity"""
+        try:
+            pipeline = [
+                {
+                    "$vectorSearch": {
+                        "index": "vector_index",
+                        "path": "vector",
+                        "queryVector": query_vector,
+                        "numCandidates": 100,
+                        "limit": limit
+                    }
+                },
+                {
+                    "$project": {
+                        "_id": 1,
+                        "content": 1,
+                        "source": 1,
+                        "metadata": 1,
+                        "score": {"$meta": "vectorSearchScore"}
+                    }
+                }
+            ]
+        
+            return list(self.entries.aggregate(pipeline))
+        except Exception as e:
+            logger.error(f"Vector search failed: {str(e)}")
+            return []
 
     def get_by_id(self, knowledge_id: str) -> Optional[Dict]:
         """Retrieve knowledge entry by ID"""
@@ -278,6 +443,36 @@ class KnowledgeDatabase:
         except Exception as e:
             logger.error(f"Failed to import Quran: {str(e)}")
             raise
+        
+    def create_backup(self, backup_path: str):
+        """Create a JSON backup of the knowledge base"""
+        try:
+            all_entries = list(self.entries.find())
+            with open(backup_path, 'w') as f:
+                json.dump(all_entries, f, default=str)
+            logger.info(f"Created backup with {len(all_entries)} entries at {backup_path}")
+        except Exception as e:
+            logger.error(f"Backup failed: {str(e)}")
+            raise
+
+    def restore_from_backup(self, backup_path: str):
+        """Restore knowledge base from backup"""
+        try:
+            with open(backup_path) as f:
+                entries = json.load(f)
+        
+            # Clear existing data
+            self.entries.delete_many({})
+        
+            # Insert in batches
+            batch_size = 100
+            for i in range(0, len(entries), batch_size):
+                self.entries.insert_many(entries[i:i+batch_size])
+        
+            logger.info(f"Restored {len(entries)} entries from backup")
+        except Exception as e:
+            logger.error(f"Restore failed: {str(e)}")
+            raise
 
     def __del__(self):
         if hasattr(self, 'client') and self.client:
@@ -285,3 +480,20 @@ class KnowledgeDatabase:
                 self.client.close()
             except:
                 pass
+
+    def get_stats(self) -> Dict:
+        """Get database statistics"""
+        try:
+            return {
+                "total_entries": self.entries.count_documents({}),
+                "by_source": dict(self.entries.aggregate([
+                    {"$group": {"_id": "$source", "count": {"$sum": 1}}}
+                ])),
+                "last_updated": self.entries.find_one(
+                    {}, 
+                    sort=[("modified_at", -1)]
+                )["modified_at"]
+            }
+        except Exception as e:
+            logger.error(f"Failed to get stats: {str(e)}")
+            return {}

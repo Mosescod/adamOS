@@ -14,6 +14,85 @@ app = Flask(__name__)
 CORS(app)
 load_dotenv()
 
+
+@app.route('/')
+def serve_index():
+    return send_from_directory('../frontend', 'index.html')
+
+# Frontend Routes
+@app.route('/homepage')
+def home():
+    return send_from_directory('../frontend', 'index.html')
+
+
+@app.route('/<page>')
+def serve_page(page):
+    valid_pages = ['adam', 'docs', 'noahq']
+    if page in valid_pages:
+        return send_from_directory('../frontend/pages', f'{page}.html')
+    return "Not Found", 404
+
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    static_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../frontend/static'))
+    try:
+        return send_from_directory(static_path, filename)
+    except FileNotFoundError:
+        logger.error(f"Static file not found: {filename} at {static_path}")
+        return "Not Found", 404
+    
+@app.before_request
+def log_static_requests():
+    if request.path.startswith('/static/'):
+        static_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../frontend/static', request.path[8:]))
+        logger.info(f"Static file request: {request.path} -> {static_path} (Exists: {os.path.exists(static_path)})")
+
+@app.route('/api/query', methods=['POST'])
+def handle_query():
+    try:
+        data = request.get_json()
+        question = data.get('question', '').strip()
+        
+        if not question:
+            return jsonify({
+                "response": "*molds clay* Speak, that I may hear your words..."
+            })
+            
+        response = adam.query(question)
+        return jsonify({"response": response})
+        
+    except Exception as e:
+        logger.error(f"API query failed: {str(e)}")
+        return jsonify({
+            "response": "*crumbles clay* My connection to sacred knowledge falters..."
+        }), 200
+
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    data = request.json
+    try:
+        response = adam.respond(
+            user_id=data['user_id'],
+            message=data['message']
+        )
+        return jsonify(response)
+    except Exception as e:
+        logger.error(f"Chat error: {e}")
+        return jsonify({"error": "Conversation failed"}), 500
+
+@app.route('/api/learn', methods=['POST'])
+def trigger_learning():
+    adam.run_learning_cycle()
+
+@app.route('/api/status', methods=['GET'])
+def status():
+    """System health check"""
+    return jsonify({
+        "status": "operational",
+        "knowledge": "active" if adam.knowledge_base else "degraded",
+        "conversations": len(adam.active_conversations)
+    })
+
 class AdamAI:
     def __init__(self):
         self.knowledge_base = self._initialize_knowledge()
@@ -93,85 +172,14 @@ class AdamAI:
 # Initialize Adam
 adam = AdamAI()
 
-# API Endpoints
-@app.route('/api/chat', methods=['POST'])
-def chat():
-    """Main conversation endpoint"""
-    data = request.json
-    try:
-        response = adam.respond(
-            user_id=data['user_id'],
-            message=data['message']
-        )
-        return jsonify(response)
-    except Exception as e:
-        logger.error(f"Chat error: {e}")
-        return jsonify({"error": "Conversation failed"}), 500
-
-@app.route('/')
-def serve_index():
-    return send_from_directory('../frontend', 'index.html')
-
-# Frontend Routes
-@app.route('/homepage')
-def home():
-    return send_from_directory('../frontend', 'index.html')
-
-
-@app.route('/<page>')
-def serve_page(page):
-    valid_pages = ['adam', 'docs', 'noahq']
-    if page in valid_pages:
-        return send_from_directory('../frontend/pages', f'{page}.html')
-    return "Not Found", 404
-
-@app.route('/static/<path:filename>')
-def static_files(filename):
-    return send_from_directory(
-        os.path.join(app.root_path, '../frontend/static'),
-        filename)
-
-@app.route('/api/query', methods=['POST'])
-def handle_query():
-    try:
-        data = request.get_json()
-        question = data.get('question', '').strip()
-        
-        if not question:
-            return jsonify({
-                "response": "*molds clay* Speak, that I may hear your words..."
-            })
-            
-        response = adam.query(question)
-        return jsonify({"response": response})
-        
-    except Exception as e:
-        logger.error(f"API query failed: {str(e)}")
-        return jsonify({
-            "response": "*crumbles clay* My connection to sacred knowledge falters..."
-        }), 200
-
-@app.route('/api/chat', methods=['POST'])
-def chat():
-    data = request.json
-    response = adam.respond(
-        user_id=data.get('user_id', 'anonymous'),
-        message=data['message']
-    )
-    return jsonify({"response": response})
-
-@app.route('/api/learn', methods=['POST'])
-def trigger_learning():
-    adam.run_learning_cycle()
-
-@app.route('/api/status', methods=['GET'])
-def status():
-    """System health check"""
-    return jsonify({
-        "status": "operational",
-        "knowledge": "active" if adam.knowledge_base else "degraded",
-        "conversations": len(adam.active_conversations)
-    })
+@app.route('/debug')
+def debug():
+    static_path = os.path.abspath(os.path.join(app.root_path, '../frontend/static'))
+    return f"""
+    Static files path: {static_path}<br>
+    Directory exists: {os.path.exists(static_path)}<br>
+    Contents: {os.listdir(static_path) if os.path.exists(static_path) else 'NOT FOUND'}
+    """
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000)

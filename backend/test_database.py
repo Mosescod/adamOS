@@ -1,25 +1,28 @@
-# test_knowledge_db.py
-from core.knowledge.knowledge_db import KnowledgeDatabase, KnowledgeSource
+from pymongo import MongoClient
+import os
+from dotenv import load_dotenv
 
-# Initialize with test MongoDB (make sure you have a running instance)
-db = KnowledgeDatabase("mongodb://localhost:27017")
+# Step 1: Load .env
+load_dotenv()
+uri = os.getenv("MONGODB_URI")
 
-# Test storing and retrieving knowledge
-print("Storing test knowledge...")
-ids = db.store_knowledge(
-    source=KnowledgeSource.BOOK,
-    content=["Test wisdom: Patience is a virtue"],
-    metadata={"title": "Test Book", "author": "Tester"}
-)
-print(f"Stored with IDs: {ids}")
+# Step 2: Connect to MongoDB Atlas
+try:
+    client = MongoClient(uri)
+    db = client.get_default_database()  # Uses db in URI (e.g., qurbanDB)
 
-# Test search
-print("\nSearching for 'patience'...")
-results = db.search(query="patience")
-for item in results:
-    print(f"- {item['content']} (Source: {item['source']})")
+    # Step 3: Insert test data
+    test_collection = db["test_agents"]
+    test_agent = {
+        "name": "Test User",
+        "phone": "08000000000"
+    }
+    insert_result = test_collection.insert_one(test_agent)
+    print(f"✅ Inserted Test Agent with ID: {insert_result.inserted_id}")
 
-# Test Quran import (requires internet)
-print("\nImporting Quran verses...")
-quran_ids = db.import_quran()
-print(f"Imported {len(quran_ids)} Quran verses")
+    # Step 4: Retrieve inserted data
+    result = test_collection.find_one({"_id": insert_result.inserted_id})
+    print("📦 Retrieved from DB:", result)
+
+except Exception as e:
+    print("❌ Error connecting to MongoDB:", e)
