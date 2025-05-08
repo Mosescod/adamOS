@@ -35,8 +35,8 @@ class AdamAI:
             }
         """
         # Initialize core components
-        self.knowledge_db = KnowledgeDatabase(config["MONGODB_URI"])
-        self.memory_db = MemoryDatabase(config["MONGODB_URI"])
+        self.knowledge_db = KnowledgeDatabase(config.MONGODB_URI)
+        self.memory_db = MemoryDatabase(config.MONGODB_URI)
         
         # Functional modules
         self.scanner = SacredScanner(self.knowledge_db)

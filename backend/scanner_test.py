@@ -1,32 +1,17 @@
-# scanner_test.py
-from core.knowledge.quran_db import QuranDatabase
+# test_sacred_scanner.py
 from core.knowledge.sacred_scanner import SacredScanner
+from core.knowledge.knowledge_db import KnowledgeDatabase
 
-print("=== Testing SacredScanner ===")
+db = KnowledgeDatabase("mongodb://localhost:27017")
+scanner = SacredScanner(db)
 
-# 1. Initialize database first
-try:
-    print("Initializing QuranDatabase...")
-    quran_db = QuranDatabase()
-    
-    # Ensure minimal data exists
-    if not quran_db.is_populated():
-        print("Loading test data...")
-        quran_db.verses.insert_one({
-            "surah_number": 1,
-            "ayah_number": 1,
-            "text": "In the name of God, the Most Gracious, the Most Merciful"
-        })
-        quran_db.themes.insert_one({
-            "theme": "mercy",
-            "keywords": ["mercy", "compassion"]
-        })
+# Test scanning
+print("Scanning for 'mercy'...")
+results = scanner.scan("What does Islam say about mercy?")
+print("\nQuran Verses:")
+for verse in results['verses'][:3]:  # Show top 3
+    print(f"- {verse['content'][:100]}...")
 
-    # 2. Test scanner
-    print("Initializing SacredScanner...")
-    scanner = SacredScanner(quran_db)
-    print("✓ Scanner initialized successfully")
-    print("Themes:", list(scanner.thematic_index.keys()))
-    
-except Exception as e:
-    print(f"Error: {str(e)}")
+print("\nWisdom from other sources:")
+for wisdom in results['wisdom'][:2]:  # Show top 2
+    print(f"- {wisdom['content'][:100]}...")
