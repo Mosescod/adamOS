@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, Response, request, jsonify, send_from_directory, abort
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
+app = Flask(__name__, static_folder='../frontend/static')
 load_dotenv()
 
 
@@ -31,22 +32,28 @@ def serve_page(page):
     if page in valid_pages:
         return send_from_directory('../frontend/pages', f'{page}.html')
     return "Not Found", 404
-
+ 
 @app.route('/static/<path:filename>')
 def static_files(filename):
-    static_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../frontend/static'))
-    try:
-        return send_from_directory(static_path, filename)
-    except FileNotFoundError:
-        logger.error(f"Static file not found: {filename} at {static_path}")
-        return "Not Found", 404
+    # Build absolute path to static folder
+    static_folder = os.path.abspath(
+        os.path.join(app.root_path, '../frontend/static')
+    )
     
-@app.before_request
-def log_static_requests():
-    if request.path.startswith('/static/'):
-        static_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../frontend/static', request.path[8:]))
-        logger.info(f"Static file request: {request.path} -> {static_path} (Exists: {os.path.exists(static_path)})")
-
+    # Build absolute path to requested file
+    file_path = os.path.join(static_folder, filename)
+    
+    # Security check - prevent directory traversal
+    if not os.path.abspath(file_path).startswith(static_folder):
+        abort(403)  # Forbidden
+    
+    # Check if file exists
+    if not os.path.isfile(file_path):
+        abort(404)  # Not found
+    
+    # Send the file
+    return send_from_directory(static_folder, filename)
+    
 @app.route('/api/query', methods=['POST'])
 def handle_query():
     try:
@@ -172,14 +179,21 @@ class AdamAI:
 # Initialize Adam
 adam = AdamAI()
 
-@app.route('/debug')
-def debug():
-    static_path = os.path.abspath(os.path.join(app.root_path, '../frontend/static'))
-    return f"""
-    Static files path: {static_path}<br>
-    Directory exists: {os.path.exists(static_path)}<br>
-    Contents: {os.listdir(static_path) if os.path.exists(static_path) else 'NOT FOUND'}
-    """
+@app.route('/debug-file/<path:filename>')
+def debug_file(filename):
+    static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../frontend/static'))
+    file_path = os.path.join(static_dir, filename)
+    
+    return jsonify({
+        'requested': filename,
+        'full_path': file_path,
+        'exists': os.path.exists(file_path),
+        'is_file': os.path.isfile(file_path),
+        'readable': os.access(file_path, os.R_OK),
+        'size': os.path.getsize(file_path) if os.path.exists(file_path) else 0,
+        'content_type': 'audio/mpeg' if filename.endswith('.mp3') else 'unknown'
+    })
 
+    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000)
