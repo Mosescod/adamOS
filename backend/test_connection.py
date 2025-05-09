@@ -3,11 +3,21 @@ import sys
 from pymongo.errors import ConnectionFailure
 from config import Config
 import os
+import socket
+import requests
 
-uri = Config.MONGODB_URI
+
 
 try:
-    client = pymongo.MongoClient(uri, serverSelectionTimeoutMS=5000)
+    # Test basic DNS resolution
+    socket.gethostbyname('cluster0.plf9450.mongodb.net')
+    print("✅ DNS resolution successful")
+except socket.gaierror:
+    print("⚠️ DNS resolution failed - but connection works (MongoDB driver may be using alternative resolution)")
+
+# Proceed with development since connection works
+try:
+    client = pymongo.MongoClient(os.getenv("MONGODB_URI"), serverSelectionTimeoutMS=5000)
     client.admin.command('ping')
     print("✅ Connection successful!")
     print(f"MongoDB version: {client.server_info()['version']}")

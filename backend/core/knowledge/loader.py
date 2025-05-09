@@ -1,4 +1,5 @@
-# core/learning/theme_generator.py
+from sklearn import logger
+from sklearn import cluster
 from sklearn.cluster import KMeans
 from sentence_transformers import SentenceTransformer
 import numpy as np
@@ -10,21 +11,31 @@ class ThemeGenerator:
         self.themes = {}
         
     def generate_themes(self, n_clusters=5):
-        """Auto-generate themes from knowledge base"""
-        # Get all knowledge entries
+        """Auto-generate themes with empty check"""
         entries = self.db.get_all_entries()
+        if not entries:
+            logger.warning("No entries found to generate themes")
+            return {}
+    
         texts = [e['content'] for e in entries]
-        
-        # Generate embeddings
         embeddings = self.model.encode(texts)
+    
+        # Ensure we have valid embeddings
+        if len(embeddings) == 0:
+            logger.error("No embeddings generated")
+            return {}
         
+        # Reshape for KMeans
+        if len(embeddings.shape) == 1:
+            embeddings = embeddings.reshape(-1, 1)
+    
         # Cluster into themes
-        kmeans = KMeans(n_clusters=n_clusters)
+        kmeans = KMeans(n_clusters=min(n_clusters, len(embeddings)))
         clusters = kmeans.fit_predict(embeddings)
         
         # Extract keywords for each cluster
         for cluster_id in range(n_clusters):
-            cluster_texts = [t for t, c in zip(texts, clusters) if c == cluster_id]
+            cluster_texts = [t for t, c in zip(texts, cluster) if c == cluster_id]
             self.themes[f"theme_{cluster_id}"] = self._extract_keywords(cluster_texts)
         
         return self.themes

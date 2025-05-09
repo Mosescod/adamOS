@@ -51,20 +51,21 @@ class UniversalSynthesizer:
                     themes.append(theme)
         return list(set(themes))
 
-    def _blend_wisdom(self, texts: List[str], themes: List[str]) -> str:
-        """Combine sources into a single coherent message."""
-        if not texts:
-            return None
-        
-        # Prioritize short, impactful statements
-        texts_sorted = sorted(texts, key=lambda x: len(x.split()))
-        
-        # Blend with theme-aware phrasing
-        if 'comfort' in themes:
-            return f"Even in solitude, there is light. {texts_sorted[0]}"
-        elif 'mercy' in themes:
-            return f"Kindness flows eternally. {texts_sorted[0]}"
-        return texts_sorted[0]  # Fallback
+    def blend(self, quran: List[Dict], other: List[Dict], context: Dict = None) -> Dict:
+        """Combine knowledge sources"""
+        if quran:
+            return {
+                'content': quran[0]['content'],
+                'source': 'quran',
+                'reference': quran[0].get('metadata', {}).get('reference', '')
+            }
+        elif other:
+            return {
+                'content': other[0]['content'],
+                'source': 'other'
+            }
+        return None
+    pass
 
     def _detect_emotional_tone(self, texts: List[str]) -> float:
         """Analyze sentiment across sources (0=sad, 1=joyful)."""

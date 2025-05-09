@@ -7,15 +7,16 @@ from config import Config
 import random
 import numpy as np
 import logging
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class MemoryDatabase:
-    def __init__(self, db_uri: str = (Config.MONGODB_URI)):
+    def __init__(self, db_uri: str = (os.getenv("MONGODB_URI"))):
         self.client = MongoClient(db_uri)
-        self.db = self.client (Config.DB_NAME)
+        self.db = self.client [os.getenv("DB_NAME")]
         self.conversations = self.db.conversations
         self.summaries = self.db.summaries
         self._create_indexes()
@@ -69,9 +70,24 @@ class MemoryDatabase:
         self.summaries.insert_one(summary_data)
         logger.info(f"Stored summary for conversation {summary_data['conv_id']}")
 
-    def find_related_summaries(self, user_id: str, topics: List[str], limit: int = 3) -> List[Dict]:
-        """Find past summaries matching topics"""
-        return list(self.summaries.find({
-            "user_id": user_id,
-            "topics": {"$in": topics}
-        }).sort("timestamp", -1).limit(limit))
+    def find_related_summaries(self, user_id: str, message: str = None, limit: int = 3) -> List[Dict]:
+        """Find related summaries - handles message or direct topics"""
+        # Extract topics from message if provided
+        topics = self._extract_topics(message) if message else []
+    
+        query = {"user_id": user_id}
+        if topics:
+            query["topics"] = {"$in": topics}
+        
+        return list(self.summaries.find(query).sort("timestamp", -1).limit(limit))
+
+    def _extract_topics(self, text: str) -> List[str]:
+        """Simple topic extraction logic"""
+        # Implement your topic extraction here
+        text_lower = text.lower()
+        topics = []
+        if 'forgiveness' in text_lower:
+            topics.append('forgiveness')
+        if 'mercy' in text_lower:
+            topics.append('mercy')
+        return topics

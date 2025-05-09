@@ -41,44 +41,31 @@ class SacredScanner:
         Returns: {'verses': [], 'wisdom': []} (sources anonymized)
         """
         try:
-            # 1. Hybrid Search
-            query_embedding = self.embedder.encode(question)
-            semantic_results = {
-                'quran': self.db.search(
-                    source=KnowledgeSource.QURAN,
-                    vector=query_embedding,
-                    similarity_threshold=0.7
-                ),
-                'other': self.db.search(
+            # Get Quran results
+            quran_results = self.db.search(
+                query=question,
+                source=KnowledgeSource.QURAN,
+                limit=3
+            )
+        
+            # Get other results
+            other_results = []
+            for source in [KnowledgeSource.BIBLE, KnowledgeSource.BOOK]:
+                results = self.db.search(
                     query=question,
-                    exclude_sources=[KnowledgeSource.QURAN],
-                    limit=5
+                    source=source,
+                    limit=2
                 )
-            }
-
-            # 2. Expand with Quranic themes
-            expanded = {
-                'quran': semantic_results['quran'] + self._expand_quran_themes(question),
-                'other': semantic_results['other']
-            }
-
-            # 3. Filter conflicts (non-Quran matches must not contradict Quran)
-            filtered = {
-                'quran': expanded['quran'],
-                'other': [
-                    item for item in expanded['other']
-                    if not self._contradicts_quran(item, expanded['quran'])
-                ]
-            }
-
+                other_results.extend(results)
+        
             return {
-                'verses': filtered['quran'][:3],  # Always prioritize Quran
-                'wisdom': filtered['other'][:2]   # Secondary sources
-            }
-
+                'quran': quran_results,
+                'other': other_results
+                }
         except Exception as e:
             logger.error(f"Scan error: {str(e)}")
-            return {'verses': [], 'wisdom': []}
+            return {'quran': [], 'other': []}
+    pass
 
     def _expand_quran_themes(self, question: str) -> List[Dict]:
         """Find related Quranic verses through theme hierarchy"""

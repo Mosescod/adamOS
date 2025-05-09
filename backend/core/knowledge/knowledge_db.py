@@ -2,6 +2,7 @@ import os
 import json
 from typing import Dict, List, Optional, Union
 from datetime import datetime
+import numpy as np
 from pymongo import monitoring
 import logging
 from pymongo import MongoClient, ASCENDING, DESCENDING
@@ -15,6 +16,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pymongo.errors import ConnectionFailure, OperationFailure
 from motor.motor_asyncio import AsyncIOMotorClient 
+
 
 logger = logging.getLogger(__name__)
 load_dotenv()
@@ -36,10 +38,10 @@ class KnowledgeEntry:
 class KnowledgeDatabase:
     def __init__(self, db_uri: str, db_name: str):
         self.db_uri = os.getenv("MONGODB_URI")
-        self.db_name = os.getenv("DB_NAME")
-        self.client = None
-        self.db = None
-        self.entries = None
+        self.db_name = "AdamAI-KnowledgeDB"
+        self.client = MongoClient(os.getenv("MONGODB_URI"))
+        self.db = self.client[db_name]
+        self.entries = self.db.enteries
         self.indexes = None
         self.connection_pool_size = 10  
         self.retry_writes = True  
@@ -49,91 +51,71 @@ class KnowledgeDatabase:
         self._connect()
 
     def _connect(self):
-        """Safe connection method with retries, connection pooling, and comprehensive error handling"""
+        """Safe connection method with proper SRV URI handling"""
         @retry(stop=stop_after_attempt(3),
             wait=wait_exponential(multiplier=1, min=4, max=10),
-            retry=(
-                    retry_if_exception_type(ConnectionFailure) |
+            retry=(retry_if_exception_type(ConnectionFailure) |
                     retry_if_exception_type(OperationFailure) |
-                    retry_if_exception_type(TimeoutError)
-            ),
-            before_sleep=lambda retry_state: logger.warning(
-                f"Retry attempt {retry_state.attempt_number} due to {retry_state.outcome.exception()}"
-            ))
+                    retry_if_exception_type(TimeoutError)))
         def connect_with_retry():
             try:
-                # Add debug print to see the actual URI being used
-                print(f"Attempting to connect with URI: {self.db_uri}")
+                # Remove any existing modification attempts
+                if self.db_uri.startswith("mongodb://mongodb+srv"):
+                    self.db_uri = "mongodb+srv://" + self.db_uri.split("mongodb+srv://")[1]
             
-                if not self.db_uri or not isinstance(self.db_uri, str):
-                    raise ValueError("MongoDB URI must be a string")
-            
-                if not self.db_uri.startswith("mongodb://"):
-                    self.db_uri = "mongodb://" + self.db_uri
-                    print(f"Modified URI to: {self.db_uri}")
-                    
-                # Parse and validate connection string
-                if not self.db_uri or "://" not in self.db_uri:
-                    raise ValueError("Invalid MongoDB connection URI format")
-                
-                # Handle special characters in password
-                if "@" in self.db_uri:
-                    protocol, rest = self.db_uri.split("://", 1)
-                    if ":" in rest.split("@")[0]:  # Contains credentials
-                        auth_part, host_part = rest.split("@", 1)
-                        username, password = auth_part.split(":", 1)
-                        password = urllib.parse.quote_plus(password)
-                        self.db_uri = f"{protocol}://{username}:{password}@{host_part}"
-
-                # Connection options
-                connect_opts = {
-                    "serverSelectionTimeoutMS": 5000,
-                    "connectTimeoutMS": 10000,
-                    "socketTimeoutMS": 30000,  # Increased for complex queries
-                    "maxPoolSize": self.max_pool_size,
-                    "minPoolSize": 5,  # New: maintain minimum connections
-                    "retryWrites": self.retry_writes,
-                    "retryReads": True,  # New: enable read retries
-                    "readPreference": "secondaryPreferred",  # New: better read distribution
-                    "heartbeatFrequencyMS": 10000,  # New: frequent health checks
-                    "appname": "AdamAI-KnowledgeDB"  # New: identify in MongoDB logs
-                }
+                # For SRV records, use the proper format
+                if "mongodb+srv://" in self.db_uri:
+                    # Don't modify SRV connection strings
+                    connect_opts = {
+                        "serverSelectionTimeoutMS": 10000,
+                        "connectTimeoutMS": 10000,
+                        "socketTimeoutMS": 30000,
+                        "retryWrites": True,
+                        "retryReads": True,
+                        "appname": "AdamAI-KnowledgeDB"
+                    }
+                else:
+                    # Standard connection string
+                    connect_opts = {
+                        "serverSelectionTimeoutMS": 10000,
+                        "connectTimeoutMS": 10000,
+                        "socketTimeoutMS": 30000,
+                        "maxPoolSize": self.max_pool_size,
+                        "minPoolSize": 5,
+                        "retryWrites": True,
+                        "retryReads": True,
+                        "appname": "AdamAI-KnowledgeDB"
+                    }
 
                 self.client = MongoClient(self.db_uri, **connect_opts)
             
-                # Test connection with more comprehensive check
-                db_status = self.client.admin.command('ping')
-                server_info = self.client.admin.command('serverStatus')
-            
-                if not db_status.get('ok', 0) == 1:
-                    raise ConnectionFailure("MongoDB ping failed")
-                
-                # Verify we can actually access our target database
+                # Test connection with simple command
+                self.client.admin.command('ping')
                 self.db = self.client[self.db_name]
                 self.entries = self.db.entries
                 self.indexes = self.db.indexes
             
-                # Test basic write operation
-                test_doc = {"_test": datetime.utcnow(), "connection_check": True}
-                self.entries.insert_one(test_doc)
-                self.entries.delete_one({"_test": {"$exists": True}})
+                logger.info(f"Successfully connected to MongoDB at {self.db_uri}")
             
-                logger.info(
-                    f"Connected to MongoDB {server_info['host']} "
-                    f"(v{server_info['version']}) with pool size {self.max_pool_size}"
-                )
-            
-                # Register event listeners
-                self._register_event_listeners()
-            
-            except (ConnectionFailure, OperationFailure, ValueError) as e:
-                logger.error(f"Connection attempt failed: {str(e)}", exc_info=True)
-                raise
             except Exception as e:
-                logger.critical(f"Unexpected connection error: {str(e)}", exc_info=True)
-                raise ConnectionFailure(f"Unexpected error: {str(e)}") from e
+                logger.error(f"Connection attempt failed: {str(e)}")
+                raise
 
         connect_with_retry()
+
+    def _ensure_connection(self):
+        if not self.client or not self.is_healthy():
+            logger.warning("Connection lost, reconnecting...")
+            self._connect()
+
+        # In knowledge_db.py
+    def is_empty(self) -> bool:
+        """Check if database has no entries"""
+        try:
+            return self.entries.count_documents({}) == 0
+        except Exception as e:
+            logger.error(f"Failed to check if database is empty: {str(e)}")
+            return True  # Assume empty if check fails
 
     def _register_event_listeners(self):
         """Register MongoDB event listeners for monitoring"""
@@ -159,6 +141,48 @@ class KnowledgeDatabase:
         except Exception as e:
             logger.warning(f"Health check failed: {str(e)}")
             return False
+        
+    def import_quran(self, translation: str = "en.asad"):
+        """Helper method to import Quran from API"""
+        try:
+            api_base = "https://api.alquran.cloud/v1"
+            
+            # Get surahs metadata
+            surahs_response = requests.get(f"{api_base}/meta")
+            surahs_response.raise_for_status()
+            surahs_data = surahs_response.json()['data']['surahs']['references']
+            
+            # Get Quran text
+            quran_response = requests.get(f"{api_base}/quran/{translation}")
+            quran_response.raise_for_status()
+            quran_data = quran_response.json()['data']['surahs']
+            
+            # Process and store verses
+            verse_ids = []
+            for surah in quran_data:
+                metadata = {
+                    "title": surah['englishName'],
+                    "author": "Allah",
+                    "language": "en",
+                    "translation": translation,
+                    "surah_number": surah['number'],
+                    "surah_name": surah['name'],
+                    "revelation_type": surah['revelationType']
+                }
+                
+                verses = [ayah['text'] for ayah in surah['ayahs']]
+                verse_ids.extend(self.store_knowledge(
+                    source=KnowledgeSource.QURAN,
+                    content=verses,
+                    metadata=metadata
+                ))
+            
+            logger.info(f"Imported Quran with {len(verse_ids)} verses")
+            return verse_ids
+            
+        except Exception as e:
+            logger.error(f"Failed to import Quran: {str(e)}")
+            raise
 
     def _initialize_collections(self):
         """Ensure all collections exist with proper indexes"""
@@ -311,6 +335,10 @@ class KnowledgeDatabase:
     def vector_search(self, query_vector: List[float], limit: int = 5) -> List[Dict]:
         """Search using vector similarity"""
         try:
+            # Convert numpy array to list if needed
+            if isinstance(query_vector, np.ndarray):
+                query_vector = query_vector.tolist()
+
             pipeline = [
                 {
                     "$vectorSearch": {
@@ -402,47 +430,42 @@ class KnowledgeDatabase:
             logger.error(f"Failed to get sources: {str(e)}")
             return []
 
-    def import_quran(self, translation: str = "en.asad"):
-        """Helper method to import Quran from API"""
+      
+    def get_all_entries(self, limit: int = 1000) -> List[Dict]:
+        """Get all knowledge entries with basic fields"""
+        return list(self.entries.find({}, limit=limit))
+
+    def vector_search(self, query_vector: List[float], limit: int = 5) -> List[Dict]:
+        """Perform vector similarity search"""
         try:
-            api_base = "https://api.alquran.cloud/v1"
-            
-            # Get surahs metadata
-            surahs_response = requests.get(f"{api_base}/meta")
-            surahs_response.raise_for_status()
-            surahs_data = surahs_response.json()['data']['surahs']['references']
-            
-            # Get Quran text
-            quran_response = requests.get(f"{api_base}/quran/{translation}")
-            quran_response.raise_for_status()
-            quran_data = quran_response.json()['data']['surahs']
-            
-            # Process and store verses
-            verse_ids = []
-            for surah in quran_data:
-                metadata = {
-                    "title": surah['englishName'],
-                    "author": "Allah",
-                    "language": "en",
-                    "translation": translation,
-                    "surah_number": surah['number'],
-                    "surah_name": surah['name'],
-                    "revelation_type": surah['revelationType']
+            # Convert numpy array to list if needed
+            if isinstance(query_vector, np.ndarray):
+                query_vector = query_vector.tolist()
+        
+            pipeline = [
+                {
+                    "$vectorSearch": {
+                        "index": "vector_index",
+                        "path": "vector",
+                        "queryVector": query_vector,
+                        "numCandidates": 100,
+                        "limit": limit
+                    }
+                },
+                {
+                    "$project": {
+                        "_id": 1,
+                        "content": 1,
+                        "source": 1,
+                        "metadata": 1,
+                        "score": {"$meta": "vectorSearchScore"}
+                    }
                 }
-                
-                verses = [ayah['text'] for ayah in surah['ayahs']]
-                verse_ids.extend(self.store_knowledge(
-                    source=KnowledgeSource.QURAN,
-                    content=verses,
-                    metadata=metadata
-                ))
-            
-            logger.info(f"Imported Quran with {len(verse_ids)} verses")
-            return verse_ids
-            
+            ]
+            return list(self.entries.aggregate(pipeline))
         except Exception as e:
-            logger.error(f"Failed to import Quran: {str(e)}")
-            raise
+            logger.error(f"Vector search failed: {str(e)}")
+            return []
         
     def create_backup(self, backup_path: str):
         """Create a JSON backup of the knowledge base"""

@@ -1,5 +1,4 @@
 from typing import Dict, List, Optional
-from config import Config
 from core.knowledge.knowledge_db import KnowledgeDatabase
 from core.knowledge.sacred_scanner import SacredScanner
 from core.knowledge.synthesizer import UniversalSynthesizer
@@ -12,6 +11,8 @@ from core.knowledge.loader import ThemeGenerator
 import logging
 import uuid
 from datetime import datetime
+import pymongo
+import os
 import sys 
 import random
 
@@ -23,7 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class AdamAI:
-    def __init__(self, config):
+    def __init__(self):
         """
         Initialize Adam's complete AI system.
         
@@ -34,13 +35,19 @@ class AdamAI:
                 "enable_learning": True
             }
         """
-        config.verify()
 
         # Initialize core components
-        self.mongodb_uri = config.MONGODB_URI
-        print(f"Using MongoDB URI: {self.mongodb_uri}")
-        self.knowledge_db = KnowledgeDatabase(self.mongodb_uri)
-        self.memory_db = config.MONGODB_URI
+        self.mongodb_uri = os.getenv("MONGODB_URI")
+        self.knowledge_db = KnowledgeDatabase(
+            self.mongodb_uri,
+            db_name="AdamAI-KnowledgeDB")
+        
+        # Check if database is empty (updated method)
+        if self.knowledge_db.is_empty():
+            logger.info("Initializing empty database...")
+            self.knowledge_db.import_quran()
+
+        self.memory_db = MemoryDatabase()
         
         # Functional modules
         self.scanner = SacredScanner(self.knowledge_db)
@@ -51,8 +58,8 @@ class AdamAI:
         self.mind = MindIntegrator()
         
         # Configuration
-        self.analysis_interval = config.ANALYSIS_INTERVAL
-        self.enable_learning = config.ENABLE_LEARNING
+        self.analysis_interval = os.getenv("ANALYSIS_INTERVAL")
+        self.enable_learning = os.getenv("ENABLE_LEARNING")
         
         self.theme_generator = ThemeGenerator(self.knowledge_db)
         self._initialize_autonomous_learning()
@@ -114,7 +121,10 @@ class AdamAI:
             
             # 3. Memory Context
             memory_context = self._get_memory_context(user_id, message)
-            
+            summaries = self.memory_db.find_related_summaries(
+                user_id=user_id,
+                message=message  
+)
             # 4. Knowledge Synthesis
             synthesized = self.synthesizer.blend(
                 verses=scan_results["verses"],
@@ -124,6 +134,13 @@ class AdamAI:
                     "emotion": emotion
                 }
             )
+            # Ensure you have this fallback
+            if not synthesized:
+                synthesized = {
+                    'content': "I need more time to contemplate this question",
+                    'primary_theme': 'default'
+                
+                }
             
             # 5. Response Generation
             response = self.mind.integrate(
@@ -144,9 +161,12 @@ class AdamAI:
             
             return response
             
+        except pymongo.errors.ServerSelectionTimeoutError as e:
+            logger.error(f"MongoDB connection failed: {str(e)}")
+            return "*clay crumbles* My knowledge wells have run dry... please try again later"
         except Exception as e:
-            logger.error(f"Response generation failed: {str(e)}")
-            return "*clay crumbles* My knowledge fails me momentarily."
+            logger.error(f"Unexpected error: {str(e)}")
+            return "*dust settles* My thoughts are scattered... ask me again"
 
     def _get_memory_context(self, user_id: str, message: str) -> Dict:
         """
@@ -209,16 +229,10 @@ class AdamAI:
         )
         logger.info(f"Added new {source} knowledge: {content[:50]}...")
 
-# Example Configuration
-DEFAULT_CONFIG = {
-    "mongodb_uri": "mongodb://localhost:27017",
-    "analysis_interval": 5,
-    "enable_learning": True
-}
 
 if __name__ == "__main__":
     # Initialize Adam
-    adam = AdamAI(DEFAULT_CONFIG)
+    adam = AdamAI()
     
     # Example conversation
     user_id = f"user_{uuid.uuid4()}"

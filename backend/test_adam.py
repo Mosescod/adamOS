@@ -1,8 +1,6 @@
 from main import AdamAI
 from config import Config
 
-print(f"Config check - MONGODB_URI: {Config.MONGODB_URI}")
-Config.verify()
     # Initialize AdamAI
 adam = AdamAI(config=Config)  # Make sure this matches your class __init__
     
