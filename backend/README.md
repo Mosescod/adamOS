@@ -39,6 +39,7 @@ Feature	Description
 ⚡ Real-time Performance	Tracks and displays response times with visual feedback
 🔄 Continuous Learning	Improves through interaction with a built-in memory system
 🛡️ Safety Filters	Built-in ethical protocols for responsible AI interactions
+
 </div>
 🎥 Demo
 https://github.com/Mosescod/adamOS/assets/65280027/abc12345-6789-4def-abc1-23456789abcd
@@ -52,27 +53,31 @@ docker-compose up -d
 Manual Installation
 Clone the repository:
 
-bash
+```bash
 git clone https://github.com/Mosescod/adamOS.git
 cd adamOS
 Install dependencies:
+```
 
-bash
+```bash
 pip install -r requirements.txt
 Configure environment:
+```
 
-bash
+```bash
 cp .env.example .env
 Run the server:
+```
 
-bash
+```bash
 python app.py
 Visit http://localhost:5000 to start chatting with Adam!
+```
 
 🔌 API Usage
 Adam provides a simple REST API for integration:
 
-javascript
+```javascript
 // JavaScript Example
 const response = await fetch('http://localhost:5000/api/chat', {
   method: 'POST',
@@ -86,7 +91,9 @@ API Endpoints
 Endpoint	Method	Description
 /api/chat	POST	Main conversation endpoint
 /api/conversation	GET	Retrieve chat history
-/api/system/status	GET	Health check
+/api/system/status	GET	Health check 
+```
+
 🛠️ Tech Stack
 <div align="center">
 Python
