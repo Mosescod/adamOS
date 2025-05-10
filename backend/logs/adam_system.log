@@ -1,0 +1,111 @@
+2025-05-10 22:26:17,778 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:26:17,780 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:26:26,255 - core.knowledge.knowledge_db - INFO - Successfully connected to MongoDB with existing collection
+2025-05-10 22:26:26,313 - core.knowledge.knowledge_db - INFO - Created text index on content field
+2025-05-10 22:26:26,369 - core.knowledge.knowledge_db - INFO - Database indexes verified
+2025-05-10 22:26:26,373 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:26:26,374 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:26:29,985 - core.knowledge.sacred_scanner - INFO - Thematic index built with 100 entries
+2025-05-10 22:26:35,058 - root - INFO - Building thematic index...
+2025-05-10 22:26:35,806 - core.knowledge.sacred_scanner - INFO - Thematic index built with 100 entries
+2025-05-10 22:26:35,807 - root - INFO - AdamAI system ready
+2025-05-10 22:33:25,961 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:33:25,961 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:33:25,961 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:33:25,961 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:33:35,073 - root - INFO - Successfully connected to MongoDB with existing collection
+2025-05-10 22:33:35,073 - root - INFO - Successfully connected to MongoDB with existing collection
+2025-05-10 22:33:35,121 - root - INFO - Created text index on content field
+2025-05-10 22:33:35,121 - root - INFO - Created text index on content field
+2025-05-10 22:33:35,174 - root - INFO - Database indexes verified
+2025-05-10 22:33:35,174 - root - INFO - Database indexes verified
+2025-05-10 22:33:35,177 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:33:35,177 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:33:35,177 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:33:35,177 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:33:39,268 - core.knowledge.sacred_scanner - INFO - Thematic index built with 100 entries
+2025-05-10 22:33:39,268 - core.knowledge.sacred_scanner - INFO - Thematic index built with 100 entries
+2025-05-10 22:33:44,331 - root - INFO - Building thematic index...
+2025-05-10 22:33:44,331 - root - INFO - Building thematic index...
+2025-05-10 22:33:45,014 - core.knowledge.sacred_scanner - INFO - Thematic index built with 100 entries
+2025-05-10 22:33:45,014 - core.knowledge.sacred_scanner - INFO - Thematic index built with 100 entries
+2025-05-10 22:33:45,014 - root - INFO - AdamAI system ready
+2025-05-10 22:33:45,014 - root - INFO - AdamAI system ready
+2025-05-10 22:37:33,333 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:37:33,333 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:37:33,333 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:37:33,333 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:37:33,333 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:37:33,333 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:37:41,031 - root - INFO - Successfully connected to MongoDB with existing collection
+2025-05-10 22:37:41,031 - root - INFO - Successfully connected to MongoDB with existing collection
+2025-05-10 22:37:41,031 - root - INFO - Successfully connected to MongoDB with existing collection
+2025-05-10 22:37:41,085 - root - INFO - Created text index on content field
+2025-05-10 22:37:41,085 - root - INFO - Created text index on content field
+2025-05-10 22:37:41,085 - root - INFO - Created text index on content field
+2025-05-10 22:37:41,140 - root - INFO - Database indexes verified
+2025-05-10 22:37:41,140 - root - INFO - Database indexes verified
+2025-05-10 22:37:41,140 - root - INFO - Database indexes verified
+2025-05-10 22:37:41,144 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:37:41,144 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:37:41,144 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:37:41,144 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:37:41,144 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:37:41,144 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:37:44,639 - root - INFO - Thematic index built with 100 entries
+2025-05-10 22:37:44,639 - root - INFO - Thematic index built with 100 entries
+2025-05-10 22:37:44,639 - root - INFO - Thematic index built with 100 entries
+2025-05-10 22:37:49,718 - root - INFO - Building thematic index...
+2025-05-10 22:37:49,718 - root - INFO - Building thematic index...
+2025-05-10 22:37:49,718 - root - INFO - Building thematic index...
+2025-05-10 22:37:50,564 - root - INFO - Thematic index built with 100 entries
+2025-05-10 22:37:50,564 - root - INFO - Thematic index built with 100 entries
+2025-05-10 22:37:50,564 - root - INFO - Thematic index built with 100 entries
+2025-05-10 22:37:50,564 - root - INFO - AdamAI system ready
+2025-05-10 22:37:50,564 - root - INFO - AdamAI system ready
+2025-05-10 22:37:50,564 - root - INFO - AdamAI system ready
+2025-05-10 22:39:48,493 - core.learning.memory_system - INFO - Logged conversation 057ef35d-8f01-4e99-8757-95ee2b5ccb1a for user console_user
+2025-05-10 22:39:48,493 - core.learning.memory_system - INFO - Logged conversation 057ef35d-8f01-4e99-8757-95ee2b5ccb1a for user console_user
+2025-05-10 22:39:48,493 - core.learning.memory_system - INFO - Logged conversation 057ef35d-8f01-4e99-8757-95ee2b5ccb1a for user console_user
+2025-05-10 22:39:48,494 - root - INFO - Stored conversation for user console_user
+2025-05-10 22:39:48,494 - root - INFO - Stored conversation for user console_user
+2025-05-10 22:39:48,494 - root - INFO - Stored conversation for user console_user
+2025-05-10 22:39:48,494 - root - INFO - *kneads clay* and for all such, behold, hell is the promised goal.
+
+As mentioned in quran:
+And what could make thee conceive what hell-fire is?...
+2025-05-10 22:39:48,494 - root - INFO - *kneads clay* and for all such, behold, hell is the promised goal.
+
+As mentioned in quran:
+And what could make thee conceive what hell-fire is?...
+2025-05-10 22:39:48,494 - root - INFO - *kneads clay* and for all such, behold, hell is the promised goal.
+
+As mentioned in quran:
+And what could make thee conceive what hell-fire is?...
+2025-05-10 22:45:59,307 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:45:59,307 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:45:59,307 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:45:59,307 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:45:59,307 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:45:59,307 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:46:09,613 - root - INFO - Successfully connected to MongoDB with existing collection
+2025-05-10 22:46:09,613 - root - INFO - Successfully connected to MongoDB with existing collection
+2025-05-10 22:46:09,613 - root - INFO - Successfully connected to MongoDB with existing collection
+2025-05-10 22:46:09,663 - root - INFO - Created text index on content field
+2025-05-10 22:46:09,663 - root - INFO - Created text index on content field
+2025-05-10 22:46:09,663 - root - INFO - Created text index on content field
+2025-05-10 22:46:09,715 - root - INFO - Database indexes verified
+2025-05-10 22:46:09,715 - root - INFO - Database indexes verified
+2025-05-10 22:46:09,715 - root - INFO - Database indexes verified
+2025-05-10 22:46:09,720 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:46:09,720 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:46:09,720 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-05-10 22:46:09,720 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:46:09,720 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:46:09,720 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-05-10 22:46:18,469 - root - INFO - Building thematic index...
+2025-05-10 22:46:18,469 - root - INFO - Building thematic index...
+2025-05-10 22:46:18,469 - root - INFO - Building thematic index...
+2025-05-10 22:46:19,172 - root - INFO - AdamAI system ready
+2025-05-10 22:46:19,172 - root - INFO - AdamAI system ready
+2025-05-10 22:46:19,172 - root - INFO - AdamAI system ready

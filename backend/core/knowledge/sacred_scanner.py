@@ -1,3 +1,5 @@
+from logging.handlers import RotatingFileHandler
+import os
 import numpy as np
 from typing import List, Dict, Optional
 from sentence_transformers import SentenceTransformer
@@ -7,7 +9,48 @@ import logging
 from tenacity import retry, stop_after_attempt, wait_exponential
 from collections import defaultdict
 
-logger = logging.getLogger(__name__)
+def configure_logging():
+    """Configure dual logging - file and console"""
+    # Create logs directory if it doesn't exist
+    os.makedirs('logs', exist_ok=True)
+    
+    # Main logger configuration
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    
+    # File handler (for all logs)
+    file_handler = RotatingFileHandler(
+        'logs/adam_system.log',
+        maxBytes=5*1024*1024,  # 5MB
+        backupCount=3
+    )
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    ))
+    
+    # Console handler (only ERROR and above)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.ERROR)  # Only show errors in console
+    
+    # Add handlers
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    # Special ready logger for console
+    ready_logger = logging.getLogger('adam_ready')
+    ready_logger.propagate = False
+    ready_handler = logging.StreamHandler()
+    ready_handler.setLevel(logging.INFO)
+    ready_handler.setFormatter(logging.Formatter('%(message)s'))
+    ready_logger.addHandler(ready_handler)
+
+    # Suppress sentence_transformers logs
+    logging.getLogger('sentence_transformers').setLevel(logging.WARNING)
+    logging.getLogger('transformers').setLevel(logging.WARNING)
+
+# Call this at the start of your application
+configure_logging()
+
 
 class SacredScanner:
     def __init__(self, knowledge_db: KnowledgeRetriever):
@@ -63,7 +106,7 @@ class SacredScanner:
                 'all_results': all_results
             }
         except Exception as e:
-            logger.error(f"Scan error: {str(e)}", exc_info=True)
+            logging.getLogger(f"Scan error: {str(e)}", exc_info=True)
             return self._empty_response()
 
     def _get_initial_results(self, question: str, context: Optional[Dict]) -> List[Dict]:
@@ -196,12 +239,12 @@ class SacredScanner:
                 # Combine and store
                 self.thematic_index[theme] = quran_results + bible_results + book_results
                 
-                logger.debug(f"Indexed {len(self.thematic_index[theme])} items for theme {theme}")
+                logging.getLogger(f"Indexed {len(self.thematic_index[theme])} items for theme {theme}")
             
             except Exception as e:
-                logger.error(f"Error indexing theme {theme}: {str(e)}", exc_info=True)
+                logging.getLogger(f"Error indexing theme {theme}: {str(e)}", exc_info=True)
         
-        logger.info(f"Thematic index built with {sum(len(v) for v in self.thematic_index.values())} entries")
+        #logging.info(f"Thematic index built with {sum(len(v) for v in self.thematic_index.values())} entries")
 
     def _empty_response(self) -> Dict[str, List[Dict]]:
         """Return empty response structure"""

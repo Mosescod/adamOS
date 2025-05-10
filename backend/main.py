@@ -1,4 +1,7 @@
+import time
 from typing import Dict, Optional
+import logging
+from logging.handlers import RotatingFileHandler
 from core.knowledge.knowledge_db import KnowledgeRetriever
 from core.knowledge.sacred_scanner import SacredScanner
 from core.knowledge.synthesizer import UniversalSynthesizer
@@ -6,40 +9,96 @@ from core.knowledge.mind_integrator import MindIntegrator
 from core.personality.emotional_model import EmotionalModel
 from core.personality.general_personality import GeneralPersonality
 from core.learning.memory_system import MemoryDatabase
-import logging
 import os
 from dotenv import load_dotenv
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+def configure_logging():
+    """Configure dual logging - file and console"""
+    # Create logs directory if it doesn't exist
+    os.makedirs('logs', exist_ok=True)
+    
+    # Main logger configuration
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    
+    # File handler (for all logs)
+    file_handler = RotatingFileHandler(
+        'logs/adam_system.log',
+        maxBytes=5*1024*1024,  # 5MB
+        backupCount=3
+    )
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    ))
+    
+    # Console handler (only ERROR and above)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.ERROR)  # Only show errors in console
+    
+    # Add handlers
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    # Special ready logger for console
+    ready_logger = logging.getLogger('adam_ready')
+    ready_logger.propagate = False
+    ready_handler = logging.StreamHandler()
+    ready_handler.setLevel(logging.INFO)
+    ready_handler.setFormatter(logging.Formatter('%(message)s'))
+    ready_logger.addHandler(ready_handler)
+
+    # Suppress sentence_transformers logs
+    logging.getLogger('sentence_transformers').setLevel(logging.WARNING)
+    logging.getLogger('transformers').setLevel(logging.WARNING)
+
+    # Suppress duplicate root logs
+    logging.getLogger().handlers = []
+
+# Call this at the start of your application
+configure_logging()
+
 load_dotenv()
 
 class AdamAI:
     def __init__(self):
-        """Initialize Adam's core response system"""
-        self.db = KnowledgeRetriever()
-        self.scanner = SacredScanner(self.db)
-        self.synthesizer = UniversalSynthesizer(self.db)
-        self.integrator = MindIntegrator()
-        self.emotion = EmotionalModel()
-        self.safety = GeneralPersonality()
-        self.memory = MemoryDatabase()
+        """Initialize with silent logging"""
+        self._silent_init()
+        self._announce_ready()
+
+    def _silent_init(self):
+        """Perform initialization with logs going to file only"""
+        try:
+            self.db = KnowledgeRetriever()
+            self.scanner = SacredScanner(self.db)
+            self.synthesizer = UniversalSynthesizer(self.db)
+            self.integrator = MindIntegrator()
+            self.emotion = EmotionalModel()
+            self.safety = GeneralPersonality()
+            self.memory = MemoryDatabase()
+
         
-        # Warm up components
-        self._initialize_system()
-        logger.info("AdamAI system ready")
+        
+            # Warm up components
+            self._initialize_system()
+            logging.getLogger('adam.system').info("AdamAI system initialized")
+
+        except Exception as e:
+            logging.getLogger('adam.system').critical(f"Initialization failed: {str(e)}")
+            raise
+
+    def _announce_ready(self):
+        """Show ready message in console"""
+        ready_logger = logging.getLogger('adam_ready')
+        ready_logger.info("\n*shapes clay* Adam is ready to converse")
+        ready_logger.info("Type your questions (or 'exit' to end)\n")
 
     def _initialize_system(self):
         """Initialize system components"""
-        logger.info("Building thematic index...")
+        logging.getLogger("Building thematic index...")
         self.scanner._refresh_thematic_index()
-        
+    
         if os.getenv("BACKFILL_EMBEDDINGS", "false").lower() == "true":
-            logger.info("Backfilling embeddings...")
+            logging.getLogger("Backfilling embeddings...")
             self.db.backfill_embeddings()
 
     def respond(self, user_id: str, message: str) -> str:
@@ -70,8 +129,16 @@ class AdamAI:
             context = self._prepare_context(user_id, message, mood_score)
             
             # Step 3: Knowledge Retrieval
-            scan_results = self.scanner.scan(message, context)
-            
+            try:
+                scan_results = self.scanner.scan(message, context)
+            except Exception as scan_error:
+                if "text index required" in str(scan_error):
+                    logging.error("Text index missing - attempting to create...")
+                    self.db.create_text_index()
+                    scan_results = self.scanner.scan(message, context)  # Retry
+                else:
+                    raise
+
             # Step 4: Knowledge Synthesis
             synthesized = self.synthesizer.blend(
                 verses=scan_results.get('verses', []),
@@ -91,11 +158,14 @@ class AdamAI:
             
             # Step 6: Store Interaction
             self._store_conversation(user_id, message, response)
-            
+            logging.getLogger(response)
+
             return response
             
         except Exception as e:
-            logger.error(f"Response generation failed: {str(e)}", exc_info=True)
+            logging.getLogger(f"Response generation failed: {str(e)}", exc_info=True)
+            if "text index" in str(e):
+                return "*reshapes clay* My knowledge needs reorganization... please ask again momentarily"
             return "*clay crumbles* My thoughts are scattered... please ask again"
 
     def _store_conversation(self, user_id: str, user_msg: str, adam_response: str):
@@ -105,7 +175,7 @@ class AdamAI:
             user_message=user_msg,
             adam_response=adam_response
         )
-        logger.info(f"Stored conversation for user {user_id}")
+        logging.getLogger(f"Stored conversation for user {user_id}")
 
     def _prepare_context(self, user_id: str, message: str, mood_score: float) -> Dict:
         """Prepare context for knowledge retrieval"""
@@ -140,27 +210,28 @@ class AdamAI:
         }
 
 if __name__ == "__main__":
-    # Initialize Adam
-    adam = AdamAI()
-    
-    print("AdamAI is ready. Type 'exit' to end our conversation.")
-    print("*molds clay* Ask me anything...")
-    
-    # Simple conversation loop
-    while True:
-        try:
-            user_input = input("\nYou: ")
-            if user_input.lower() in ['exit', 'quit', 'bye']:
-                print("*carefully sets clay down* Until we meet again...")
-                break
+    try:
+        # This will show nothing in console until ready
+        adam = AdamAI()
+        
+        # Simple conversation loop
+        while True:
+            try:
+                user_input = input("You: ")
+                if user_input.lower() in ['exit', 'quit', 'bye']:
+                    print("\n*carefully sets clay down* Until we meet again...")
+                    break
+                    
+                response = adam.respond("console_user", user_input)
+                print(f"Adam: {response}")
                 
-            response = adam.respond("console_user", user_input)
-            print(f"\nAdam: {response}")
-            
-        except KeyboardInterrupt:
-            print("\n*brushes clay from hands* Farewell...")
-            break
-        except Exception as e:
-            print("*clay cracks* Oh dear, something went wrong...")
-            logger.error(f"Conversation error: {str(e)}")
-            break
+            except KeyboardInterrupt:
+                print("\n*brushes clay from hands* Farewell...")
+                break
+            except Exception as e:
+                logging.getLogger(f"Conversation error: {str(e)}")
+                print("*clay cracks* Oh dear, something went wrong...")
+                
+    except Exception as e:
+        # Critical errors still show in console
+        print(f"*clay shatters* System failed to initialize: {str(e)}")
