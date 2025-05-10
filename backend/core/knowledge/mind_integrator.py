@@ -33,49 +33,41 @@ class MindIntegrator:
 
     def integrate(self, synthesized: Dict, user_context: Dict = None) -> str:
         """
-        Transforms synthesized knowledge into Adam's natural response.
-        
-        Args:
-            synthesized: {
-                'primary_theme': 'mercy',
-                'content': 'Allah forgives all sins',
-                'quran_refs': ['25:70'],
-                'confidence': 0.9
-            }
-            user_context: {
-                'religion': 'islam',  # or 'christian', None
-                'mood': 0.7,         # 0-1 scale
-                'is_offensive': False
-            }
+        Enhanced response generation with better context handling
         """
-        # Select template pool based on context
-        template_pool = (
-            self.response_templates['islamic'] 
-            if user_context and user_context.get('religion') == 'islam'
-            else self.response_templates['universal']
-        )
+        if not synthesized or 'content' not in synthesized:
+            return "*dusts hands* I need more time to contemplate this..."
         
-        # Get theme-specific templates or fallback
-        theme = synthesized.get('primary_theme', 'default')
-        templates = template_pool.get(theme, template_pool['default'])
+        primary_theme = synthesized.get('primary_theme', 'default')
+        content = synthesized['content']
+        sources = synthesized.get('sources', [])
+        
+        # Determine response style
+        if any(s.get('source') == 'quran' for s in sources):
+            template_pool = self.response_templates['islamic']
+        else:
+            template_pool = self.response_templates['universal']
+        
+        # Select template
+        templates = template_pool.get(primary_theme, template_pool['default'])
+        template = random.choice(templates)
+        
+        # Format references
+        refs = {
+            s['source']: s.get('metadata', {}).get('reference', '')
+            for s in sources if 'metadata' in s
+        }
         
         # Format response
-        response_text = synthesized['content']
-        if 'quran_refs' in synthesized and theme != 'universal':
-            ref = synthesized['quran_refs'][0] if synthesized['quran_refs'] else ''
-            response_text = response_text.replace('(Quran {ref})', f'(Quran {ref})' if ref else '')
-        
-        # Apply template
-        response = random.choice(templates).format(
-            response=response_text,
-            prophet="the Prophet"  # Default if none specified
+        response = template.format(
+            response=content,
+            prophet="the Prophet",
+            **refs
         )
         
-        # Add mood nuance
+        # Add emotional nuance
         mood = user_context.get('mood', 0.5) if user_context else 0.5
-        response = self._apply_mood(response, mood)
-        
-        return response
+        return self._apply_mood(response, mood)
 
     def _apply_mood(self, response: str, mood: float) -> str:
         """Add emotional layer to response"""

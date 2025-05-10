@@ -9,32 +9,48 @@ class UniversalSynthesizer:
         self.vectorizer = TfidfVectorizer(stop_words='english')
         self.theme_hierarchy = {
             'comfort': ['lonely', 'sad', 'ease'],
-            'mercy': ['forgive', 'compassion', 'kind']
+            'mercy': ['forgive', 'compassion', 'kind'],
+            'wisdom': ['knowledge', 'understanding', 'insight']
         }
 
-    def analyze_sources(self, question: str) -> Dict:
-        """Retrieve & blend knowledge from all sources."""
-        # Step 1: Fetch relevant content from all sources
-        results = {
-            'quran': self.db.search(source=KnowledgeSource.QURAN, query=question),
-            'bible': self.db.search(source=KnowledgeSource.BIBLE, query=question),
-            'books': self.db.search(source=KnowledgeSource.BOOK, query=question)
-        }
-
-        # Step 2: Extract universal themes (ignoring source origins)
-        all_texts = [item['content'] for sublist in results.values() for item in sublist]
+    def blend(self, verses: List[Dict], wisdom: List[Dict], context: Dict = None) -> Dict:
+        """Enhanced knowledge blending with context awareness"""
+        if not verses and not wisdom:
+            return {
+                'content': "I need more time to contemplate this question",
+                'primary_theme': 'default',
+                'sources': [],
+                'confidence': 0.0
+            }
+        
+        # Combine all sources
+        all_sources = verses + wisdom
+        all_texts = [s['content'] for s in all_sources]
+        
+        # Determine primary source (Quran first)
+        primary_source = verses[0] if verses else wisdom[0]
+        
+        # Extract themes
         themes = self._extract_universal_themes(all_texts)
-
-        # Step 3: Merge into cohesive wisdom
-        blended = self._blend_wisdom(all_texts, themes)
+        primary_theme = themes[0] if themes else 'default'
+        
+        # Calculate confidence based on source quality
+        confidence = self._calculate_confidence(verses, wisdom)
+        
+        # Get emotional tone
+        mood_cues = self._detect_emotional_tone(all_texts)
+        
         return {
-            'themes': themes,
-            'response': blended,
-            'mood_cues': self._detect_emotional_tone(all_texts)
+            'content': primary_source['content'],
+            'primary_theme': primary_theme,
+            'sources': [primary_source],
+            'supporting_sources': all_sources[:3],
+            'confidence': confidence,
+            'mood_score': mood_cues
         }
 
     def _extract_universal_themes(self, texts: List[str]) -> List[str]:
-        """Identify cross-source themes using TF-IDF."""
+        """Identify cross-source themes using TF-IDF"""
         if not texts:
             return []
         
@@ -43,7 +59,6 @@ class UniversalSynthesizer:
         scores = np.sum(self.vectorizer.transform(texts).toarray(), axis=0)
         top_terms = [terms[i] for i in np.argsort(scores)[-3:][::-1]]
         
-        # Map terms to higher-level themes
         themes = []
         for term in top_terms:
             for theme, keywords in self.theme_hierarchy.items():
@@ -51,28 +66,20 @@ class UniversalSynthesizer:
                     themes.append(theme)
         return list(set(themes))
 
-    def blend(self, quran: List[Dict], other: List[Dict], context: Dict = None) -> Dict:
-        """Combine knowledge sources"""
-        if quran:
-            return {
-                'content': quran[0]['content'],
-                'source': 'quran',
-                'reference': quran[0].get('metadata', {}).get('reference', '')
-            }
-        elif other:
-            return {
-                'content': other[0]['content'],
-                'source': 'other'
-            }
-        return None
-    pass
+    def _calculate_confidence(self, verses: List[Dict], wisdom: List[Dict]) -> float:
+        """Calculate response confidence based on sources"""
+        if verses:
+            return min(0.9 + (len(verses) * 0.05), 1.0)
+        elif wisdom:
+            return min(0.7 + (len(wisdom) * 0.05), 0.9)
+        return 0.5
 
     def _detect_emotional_tone(self, texts: List[str]) -> float:
-        """Analyze sentiment across sources (0=sad, 1=joyful)."""
+        """Analyze sentiment across sources (0=sad, 1=joyful)"""
         positive_words = ['hope', 'love', 'peace']
         negative_words = ['lonely', 'suffering', 'pain']
         
-        score = 0.5  # Neutral baseline
+        score = 0.5
         for text in texts:
             if any(word in text for word in positive_words):
                 score += 0.1

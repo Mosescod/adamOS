@@ -1,81 +1,98 @@
-from pymongo import MongoClient
-from pprint import pprint
+import os
+from core.knowledge.knowledge_db import KnowledgeRetriever
 import logging
+from pprint import pprint
+import numpy as np
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class DatabaseInspector:
-    def __init__(self, connection_string):
-        self.client = MongoClient(connection_string)
-        self.db = self.client.get_database("AdamAI-KnowledgeDB")
+def test_retriever():
+    """Comprehensive test for KnowledgeRetriever"""
+    print("\n=== Starting KnowledgeRetriever Tests ===\n")
     
-    def check_collections(self):
-        """List all collections"""
-        collections = self.db.list_collection_names()
-        logger.info(f"Collections: {collections}")
-        return collections
+    # Initialize with longer timeout
+    retriever = KnowledgeRetriever()
     
-    def check_indexes(self, collection_name):
-        """Show indexes for a collection"""
-        indexes = self.db[collection_name].index_information()
-        logger.info(f"Indexes for {collection_name}:")
-        pprint(indexes)
-        return indexes
+    # Test 1: Verify connection and basic collection stats
+    print("1. Testing database connection and collection...")
+    try:
+        count = retriever.entries.count_documents({})
+        quran_count = retriever.entries.count_documents({"source": "quran"})
+        print(f"✅ Found {count} total documents ({quran_count} Quran verses)")
+    except Exception as e:
+        print(f"❌ Connection test failed: {str(e)}")
+        return
     
-    def sample_documents(self, collection_name, n=2):
-        """Show sample documents"""
-        docs = list(self.db[collection_name].find().limit(n))
-        logger.info(f"Sample documents from {collection_name}:")
-        for doc in docs:
-            pprint({k: v for k, v in doc.items() if k != 'vector'})
-            print(f"Vector length: {len(doc.get('vector', [])) if 'vector' in doc else 0}")
-        return docs
+    # Test 2: Verify vectors exist
+    print("\n2. Checking for vector embeddings...")
+    try:
+        with_vector = retriever.entries.count_documents({"vector": {"$exists": True}})
+        print(f"✅ {with_vector} documents have vector embeddings")
+        if with_vector == 0:
+            print("❌ No vectors found - run backfill_embeddings() first")
+            return
+    except Exception as e:
+        print(f"❌ Vector check failed: {str(e)}")
+        return
     
-    def count_documents(self, collection_name, query=None):
-        """Count documents matching query"""
-        count = self.db[collection_name].count_documents(query or {})
-        logger.info(f"Documents in {collection_name}: {count}")
-        return count
+    # Test 3: Basic vector search without filters
+    print("\n3. Testing basic vector search...")
+    try:
+        results = retriever.vector_search("mercy", limit=3, source=None)
+        print(f"Found {len(results)} results:")
+        for i, doc in enumerate(results):
+            print(f"\nResult {i+1}:")
+            print(f"Source: {doc.get('source')}")
+            print(f"Content: {doc.get('content')[:80]}...")
+            print(f"Score: {doc.get('score'):.3f}")
+        
+        if len(results) == 0:
+            print("❌ No results - possible index issues")
+    except Exception as e:
+        print(f"❌ Basic search failed: {str(e)}")
+        return
     
-    def check_search_index(self):
-        """Verify Atlas Search index exists"""
-        try:
-            # This requires MongoDB 4.4+ and proper permissions
-            indexes = self.db.command("listSearchIndexes")
-            logger.info("Atlas Search indexes:")
-            pprint(indexes)
-            return indexes
-        except Exception as e:
-            logger.error(f"Failed to check search indexes: {str(e)}")
-            return None
+    # Test 4: Filtered vector search
+    print("\n4. Testing filtered vector search (Quran only)...")
+    try:
+        results = retriever.vector_search("mercy", limit=3, source="quran")
+        print(f"Found {len(results)} Quran results:")
+        for doc in results:
+            print(f"- {doc.get('metadata', {}).get('reference')}: {doc.get('content')[:60]}...")
+        
+        if len(results) == 0:
+            print("⚠️ No filtered results - checking why...")
+            # Debug why filtering failed
+            sample_doc = retriever.entries.find_one({"source": "quran"})
+            if not sample_doc:
+                print("❌ No Quran documents found in collection")
+            else:
+                print("ℹ️ Sample Quran document exists but not returned in search")
+    except Exception as e:
+        print(f"❌ Filtered search failed: {str(e)}")
+        return
+    
+    # Test 5: Verify document structure
+    print("\n5. Verifying document structure...")
+    try:
+        sample = retriever.entries.find_one({"source": "quran"})
+        if sample:
+            print("✅ Sample Quran document structure:")
+            print(f"Content length: {len(sample.get('content', ''))} chars")
+            print(f"Vector length: {len(sample.get('vector', []))} dimensions")
+            print(f"Metadata: {list(sample.get('metadata', {}).keys())}")
+        else:
+            print("❌ No Quran documents found to verify structure")
+    except Exception as e:
+        print(f"❌ Structure check failed: {str(e)}")
+        return
+    
+    print("\n=== Test Summary ===")
+    print("Run these diagnostic commands if any tests failed:")
+    print("1. Check index status: db.entries.getSearchIndexes()")
+    print("2. Verify vectors: db.entries.countDocuments({vector: {$exists: true}})")
+    print("3. Check sample doc: db.entries.findOne({source: 'quran'})")
 
 if __name__ == "__main__":
-    # Replace with your actual connection string
-    inspector = DatabaseInspector(
-        "mongodb+srv://mosescod:Kp92kmDQcQneZJph@cluster0.plf9450.mongodb.net"
-    )
-    
-    print("\n=== DATABASE DIAGNOSTICS ===\n")
-    
-    # 1. Check collections
-    collections = inspector.check_collections()
-    
-    # 2. Check indexes for each collection
-    for col in collections:
-        inspector.check_indexes(col)
-    
-    # 3. Sample documents
-    for col in collections:
-        inspector.sample_documents(col)
-    
-    # 4. Document counts by source
-    print("\n=== DOCUMENT COUNTS ===")
-    inspector.count_documents("entries")
-    inspector.count_documents("entries", {"source": "quran"})
-    inspector.count_documents("entries", {"source": "bible"})
-    inspector.count_documents("entries", {"source": "wikipedia"})
-    
-    # 5. Check search index (Atlas only)
-    print("\n=== SEARCH INDEX STATUS ===")
-    inspector.check_search_index()
+    test_retriever()

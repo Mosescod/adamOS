@@ -10,9 +10,6 @@ logger = logging.getLogger(__name__)
 
 class SacredScanner:
     def __init__(self, knowledge_db: KnowledgeDatabase):
-        """
-        Quran-prioritized knowledge scanner for AdamAI.
-        """
         self.db = knowledge_db
         self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
         self.theme_hierarchy = {
@@ -22,49 +19,35 @@ class SacredScanner:
         }
         self._refresh_thematic_index()
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-    def _refresh_thematic_index(self):
-        """Auto-build theme index from DB with Quran focus"""
-        self.thematic_index = {}
-        for theme in self.theme_hierarchy:
-            # Prioritize Quranic verses in thematic index
-            self.thematic_index[theme] = (
-                self.db.search(source=KnowledgeSource.QURAN, tags=[theme], limit=20) +
-                self.db.search(source=KnowledgeSource.BIBLE, tags=[theme], limit=5) +
-                self.db.search(source=KnowledgeSource.BOOK, tags=[theme], limit=3)
-            )
-        logger.info(f"Thematic index built with {sum(len(v) for v in self.thematic_index.values())} entries")
-
     def scan(self, question: str, context: Dict = None) -> Dict[str, List[Dict]]:
-        """Quran-first knowledge retrieval with proper return format"""
+        """Enhanced Quran-first knowledge retrieval with context awareness"""
         try:
-            # Get Quran results
-            quran_results = self.db.hybrid_search(
-                query=question,
-                source=KnowledgeSource.QURAN.value,  # Use .value for enum
-                limit=3
-            )
-        
-            # Get other results
-            other_results = []
-            for source in [KnowledgeSource.BIBLE, KnowledgeSource.BOOK]:
-                results = self.db.hybrid_search(
-                    query=question,
-                    source=source.value,  # Use .value for enum
-                    limit=2
-                )
-                other_results.extend(results)
-        
-            # Return with correct keys
+            # Get most relevant results regardless of source
+            all_results = self.db.get_relevant_context(question, limit=10)
+            
+            # Separate by source
+            quran_results = [r for r in all_results if r['source'] == KnowledgeSource.QURAN.value]
+            other_results = [r for r in all_results if r['source'] != KnowledgeSource.QURAN.value]
+            
+            # Filter out contradictions
+            filtered_other = [
+                r for r in other_results 
+                if not self._contradicts_quran(r, quran_results)
+            ]
+            
+            # Add thematic expansion if Quran results are sparse
+            if len(quran_results) < 3:
+                quran_results.extend(self._expand_quran_themes(question))
+                quran_results = quran_results[:3]
+                
             return {
-                'quran': quran_results,
-                'other': other_results,
-                'verses': quran_results,  # Duplicate for compatibility
-                'wisdom': other_results   # Duplicate for compatibility
+                'verses': quran_results,
+                'wisdom': filtered_other,
+                'all_results': all_results
             }
         except Exception as e:
             logger.error(f"Scan error: {str(e)}")
-            return {'quran': [], 'other': [], 'verses': [], 'wisdom': []}
+            return {'verses': [], 'wisdom': [], 'all_results': []}
 
     def _expand_quran_themes(self, question: str) -> List[Dict]:
         """Find related Quranic verses through theme hierarchy"""
@@ -75,10 +58,7 @@ class SacredScanner:
         return related_verses
 
     def _contradicts_quran(self, item: Dict, quran_verses: List[Dict]) -> bool:
-        """
-        Check if non-Quran content contradicts Quranic verses.
-        Simple keyword-based contradiction detection.
-        """
+        """Check if non-Quran content contradicts Quranic verses"""
         if not quran_verses:
             return False
             
@@ -101,23 +81,30 @@ class SacredScanner:
         """Improved thematic index builder"""
         self.thematic_index = {}
         for theme, keywords in self.theme_hierarchy.items():
-            # Search using tags instead of source
-            quran_results = self.db.search(
-                tags=[theme],
-                source=KnowledgeSource.QURAN,
-                limit=20
-            )
-            bible_results = self.db.search(
-                tags=[theme],
-                source=KnowledgeSource.BIBLE, 
-                limit=5
-            )
-            book_results = self.db.search(
-                tags=[theme],
-                source=KnowledgeSource.BOOK,
-                limit=3
-            )
+            try:
+                # Search using tags instead of source
+                quran_results = self.db.search(
+                    tags=[theme],
+                    source=KnowledgeSource.QURAN,
+                    limit=20
+                ) or []  # Ensure we get an empty list if None is returned
+            
+                bible_results = self.db.search(
+                    tags=[theme],
+                    source=KnowledgeSource.BIBLE, 
+                    limit=5
+                ) or []
+            
+                book_results = self.db.search(
+                    tags=[theme],
+                    source=KnowledgeSource.BOOK,
+                    limit=3
+                ) or []
         
-            self.thematic_index[theme] = quran_results + bible_results + book_results
+                self.thematic_index[theme] = quran_results + bible_results + book_results
+        
+            except Exception as e:
+                logger.error(f"Error building index for theme {theme}: {str(e)}")
+                self.thematic_index[theme] = []
     
         logger.info(f"Thematic index built with {sum(len(v) for v in self.thematic_index.values())} entries")

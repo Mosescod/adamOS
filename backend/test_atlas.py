@@ -1,24 +1,59 @@
-import requests
+from core.knowledge.importer import AtlasImporter
+from core.knowledge.knowledge_db import KnowledgeDatabase
+from core.knowledge.sacred_scanner import SacredScanner
+from core.knowledge.synthesizer import UniversalSynthesizer
+from core.knowledge.mind_integrator import MindIntegrator
 import os
+from dotenv import load_dotenv
 
-# Set your Atlas API keys
-PUBLIC_KEY = "your_public_key"
-PRIVATE_KEY = "your_private_key"
-GROUP_ID = "your_project_id"  # Find in Project Settings
+load_dotenv('.env')
 
-# Get current IP
-current_ip = requests.get('https://api.ipify.org').text
+def test_system():
+    # Initialize with test data
+    atlas_uri = os.getenv("MONGODB_URI")
+    importer = AtlasImporter(atlas_uri)
+    print("Importing test data...")
+    importer.import_quran()
+    importer.import_bible()
+    importer.import_wikipedia()
+    
+    # Initialize components
+    knowledge_db = KnowledgeDatabase(atlas_uri, "AdamAI-KnowledgeDB")
+    scanner = SacredScanner(knowledge_db)
+    synthesizer = UniversalSynthesizer(knowledge_db)
+    mind = MindIntegrator()
+    
+    # Test questions
+    test_questions = [
+        "What does Islam say about forgiveness?",
+        "Tell me about mercy in Christianity",
+        "Who are the prophets in Islam?",
+        "How should I pray in Islam?"
+    ]
+    
+    for question in test_questions:
+        print(f"\nQuestion: {question}")
+        
+        # 1. Scan for knowledge
+        scan_results = scanner.scan(question)
+        print(f"Found {len(scan_results['verses'])} Quran verses and {len(scan_results['wisdom'])} other sources")
+        
+        # 2. Synthesize response
+        synthesized = synthesizer.blend(scan_results["verses"], scan_results["wisdom"])
+        print(f"Primary theme: {synthesized['primary_theme']}")
+        print(f"Confidence: {synthesized['confidence']:.1%}")
+        
+        # 3. Generate response
+        response = mind.integrate(synthesized, {
+            "user_id": "test_user",
+            "mood": 0.7,
+            "religion": "islam"
+        })
+        print("Adam's response:")
+        print(response)
+    
+    # Cleanup
+    knowledge_db.client.drop_database("AdamAI-KnowledgeDB")
 
-# Check against Atlas whitelist
-auth = requests.auth.HTTPDigestAuth(PUBLIC_KEY, PRIVATE_KEY)
-response = requests.get(
-    f"https://cloud.mongodb.com/api/atlas/v1.0/groups/{GROUP_ID}/accessList",
-    auth=auth
-)
-
-whitelisted = any(
-    entry['ipAddress'] == current_ip 
-    for entry in response.json()['results']
-)
-
-print(f"IP {current_ip} is {'whitelisted' if whitelisted else 'NOT whitelisted'}")
+if __name__ == "__main__":
+    test_system()

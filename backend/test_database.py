@@ -116,32 +116,20 @@ class AtlasSearchVerifier:
     def verify_hybrid_search(self):
         """Test combined text + vector search"""
         logger.info("\n🔗 HYBRID SEARCH VERIFICATION")
-        
+    
         try:
             query = "prophet Muhammad"
             query_vector = self.embedder.encode(query).tolist()
-            
-            results = list(self.entries.aggregate([
+        
+            # Text search
+            text_results = list(self.entries.aggregate([
                 {
                     "$search": {
                         "index": "adamai_search",
-                        "compound": {
-                            "should": [
-                                {
-                                    "text": {
-                                        "query": query,
-                                        "path": "content",
-                                        "score": {"boost": {"value": 1.5}}
-                                    }
-                                },
-                                {
-                                    "knnBeta": {
-                                        "vector": query_vector,
-                                        "path": "vector",
-                                        "k": 50
-                                    }
-                                }
-                            ]
+                        "text": {
+                            "query": query,
+                            "path": "content",
+                            "score": {"boost": {"value": 1.5}}
                         }
                     }
                 },
@@ -154,13 +142,44 @@ class AtlasSearchVerifier:
                     }
                 }
             ]))
-            
+        
+            # Vector search
+            vector_results = list(self.entries.aggregate([
+                {
+                    "$search": {
+                        "index": "adamai_search",
+                        "knnBeta": {
+                            "vector": query_vector,
+                            "path": "vector",
+                            "k": 50
+                        }
+                    }
+                },
+                {"$limit": 3},
+                {
+                    "$project": {
+                        "content": 1,
+                        "source": 1,
+                        "score": {"$meta": "vectorSearchScore"}
+                    }
+                }
+            ]))
+        
+            # Combine and deduplicate results
+            combined = text_results + vector_results
+            seen_ids = set()
+            unique_results = []
+            for doc in combined:
+                if str(doc['_id']) not in seen_ids:
+                    seen_ids.add(str(doc['_id']))
+                    unique_results.append(doc)
+
             logger.info(f"Hybrid search results for '{query}':")
-            for doc in results:
-                print(f"- Score: {doc['score']:.3f}")
+            for doc in unique_results[:3]:  # Show top 3 combined results
+                print(f"- Score: {doc.get('score', 0):.3f}")
                 print(f"  {doc['content'][:80]}...")
                 print(f"  Source: {doc['source']}\n")
-                
+            
         except Exception as e:
             logger.error(f"Hybrid search failed: {str(e)}")
 

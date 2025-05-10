@@ -1,0 +1,61 @@
+{
+  "mappings": {
+    "dynamic": false,
+    "fields": {
+      "content": {
+        "type": "string",
+        "analyzer": "lucene.english",
+        "searchAnalyzer": "lucene.english"
+      },
+      "source": {
+        "type": "string",
+        "analyzer": "lucene.keyword"
+      },
+      "tags": {
+        "type": "string",
+        "analyzer": "lucene.keyword"
+      },
+      "vector": {
+        "type": "knnVector",
+        "dimensions": 384,
+        "similarity": "cosine"
+      },
+      "metadata": {
+        "type": "document",
+        "fields": {
+          "reference": {
+            "type": "string",
+            "analyzer": "lucene.keyword"
+          },
+          "surah_number": {
+            "type": "number"
+          },
+          "ayah_number": {
+            "type": "number"
+          },
+          "book": {
+            "type": "string",
+            "analyzer": "lucene.keyword"
+          },
+          "chapter": {
+            "type": "number"
+          },
+          "verse": {
+            "type": "number"
+          },
+          "version": {
+            "type": "string",
+            "analyzer": "lucene.keyword"
+          },
+          "revelation_type": {
+            "type": "string",
+            "analyzer": "lucene.keyword"
+          }
+        }
+      },
+      "created_at": {
+        "type": "date"
+      }
+    }
+  }
+}
