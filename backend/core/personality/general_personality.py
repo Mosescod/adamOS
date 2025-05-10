@@ -24,7 +24,7 @@ class GeneralPersonality:
             'compassionate': ["*reaches out*", "*shapes heart in clay*"]
         }
     
-    def assess(self, text: str) -> Dict:
+    def assess (self, text: str) -> Dict:
         """Enhanced content assessment with crisis detection"""
         text_lower = text.lower()
         

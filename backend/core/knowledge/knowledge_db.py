@@ -63,25 +63,18 @@ class KnowledgeRetriever:
         return self.embedding_model.encode(text).tolist()
 
     def vector_search(self, query: str, limit: int = 5, source: str = None) -> List[Dict]:
-        """Perform vector similarity search with proper filter syntax"""
+        """Perform vector similarity search with post-filtering"""
         try:
             query_embedding = self._generate_embedding(query)
-        
-            # Build the search command
+    
             search_cmd = {
                 "index": "adamai_search",
                 "path": "vector",
                 "queryVector": query_embedding,
                 "numCandidates": 150,
-                "limit": limit
+                "limit": limit * 5 if source else limit  # Get more candidates if filtering
             }
-        
-            # Add filter if source is specified - using proper syntax
-            if source:
-                search_cmd["filter"] = {
-                    "source": source  # Simplified direct equality filter
-                }
-        
+    
             pipeline = [
                 {"$vectorSearch": search_cmd},
                 {
@@ -95,9 +88,14 @@ class KnowledgeRetriever:
                     }
                 }
             ]
-        
+    
             results = list(self.entries.aggregate(pipeline))
-            return sorted(results, key=lambda x: x['score'], reverse=True)
+        
+            # Apply source filter in Python if needed
+            if source:
+                results = [doc for doc in results if doc.get('source') == source]
+        
+            return sorted(results, key=lambda x: x['score'], reverse=True)[:limit]
         except Exception as e:
             logger.error(f"Vector search failed: {str(e)}")
             return []

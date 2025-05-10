@@ -1,110 +1,213 @@
 import numpy as np
-from typing import List, Dict
+from typing import List, Dict, Optional
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-from .knowledge_db import KnowledgeDatabase, KnowledgeSource
+from .knowledge_db import KnowledgeRetriever, KnowledgeSource
 import logging
 from tenacity import retry, stop_after_attempt, wait_exponential
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
 class SacredScanner:
-    def __init__(self, knowledge_db: KnowledgeDatabase):
+    def __init__(self, knowledge_db: KnowledgeRetriever):
         self.db = knowledge_db
         self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
         self.theme_hierarchy = {
-            'mercy': ['forgive', 'compassion', 'kindness'],
-            'comfort': ['lonely', 'sad', 'ease'],
-            'prophets': ['muhammad', 'isa', 'musa']
+            'mercy': ['forgive', 'compassion', 'kindness', 'pardon', 'merciful'],
+            'comfort': ['lonely', 'sad', 'ease', 'distress', 'anxiety', 'peace'],
+            'prophets': ['muhammad', 'isa', 'musa', 'abraham', 'david', 'solomon'],
+            'prayer': ['supplication', 'dua', 'worship', 'invocation'],
+            'patience': ['perseverance', 'steadfast', 'endurance', 'trials']
         }
+        self.thematic_index = defaultdict(list)
         self._refresh_thematic_index()
 
-    def scan(self, question: str, context: Dict = None) -> Dict[str, List[Dict]]:
-        """Enhanced Quran-first knowledge retrieval with context awareness"""
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+    def scan(self, question: str, context: Optional[Dict] = None) -> Dict[str, List[Dict]]:
+        """
+        Enhanced knowledge retrieval with comprehensive context search.
+        
+        Args:
+            question: The question or topic to search for
+            context: Optional context dictionary with additional parameters
+            
+        Returns:
+            Dictionary containing:
+            - verses: Quranic verses
+            - wisdom: Other religious texts
+            - related: Thematically related content
+            - all_results: All search results
+        """
         try:
-            # Get most relevant results regardless of source
-            all_results = self.db.get_relevant_context(question, limit=10)
+            # Get initial results from all sources
+            all_results = self._get_initial_results(question, context)
             
-            # Separate by source
-            quran_results = [r for r in all_results if r['source'] == KnowledgeSource.QURAN.value]
-            other_results = [r for r in all_results if r['source'] != KnowledgeSource.QURAN.value]
+            # Separate by source with priority to Quran
+            quran_results = self._filter_and_rank_results(all_results, KnowledgeSource.QURAN)
+            other_results = self._filter_and_rank_results(
+                all_results, 
+                exclude_source=KnowledgeSource.QURAN
+            )
             
-            # Filter out contradictions
-            filtered_other = [
-                r for r in other_results 
-                if not self._contradicts_quran(r, quran_results)
-            ]
+            # Filter out contradictions with Quran
+            filtered_other = self._filter_contradictions(other_results, quran_results)
             
-            # Add thematic expansion if Quran results are sparse
-            if len(quran_results) < 3:
-                quran_results.extend(self._expand_quran_themes(question))
-                quran_results = quran_results[:3]
-                
+            # Get thematically expanded results
+            related_results = self._get_related_results(question, quran_results)
+            
             return {
-                'verses': quran_results,
-                'wisdom': filtered_other,
+                'verses': quran_results[:5],  # Top 5 Quran verses
+                'wisdom': filtered_other[:3],  # Top 3 other religious texts
+                'related': related_results[:5],  # Top 5 thematically related
                 'all_results': all_results
             }
         except Exception as e:
-            logger.error(f"Scan error: {str(e)}")
-            return {'verses': [], 'wisdom': [], 'all_results': []}
+            logger.error(f"Scan error: {str(e)}", exc_info=True)
+            return self._empty_response()
 
-    def _expand_quran_themes(self, question: str) -> List[Dict]:
-        """Find related Quranic verses through theme hierarchy"""
-        related_verses = []
-        for theme, keywords in self.theme_hierarchy.items():
-            if any(keyword in question.lower() for keyword in keywords):
-                related_verses.extend(self.thematic_index.get(theme, []))
-        return related_verses
+    def _get_initial_results(self, question: str, context: Optional[Dict]) -> List[Dict]:
+        """Get initial search results with hybrid approach"""
+        if context and context.get('source'):
+            # If specific source requested in context
+            return self.db.hybrid_search(
+                question, 
+                limit=15,
+                source=context['source']
+            )
+        else:
+            # Default hybrid search across all sources
+            return self.db.hybrid_search(question, limit=20)
 
-    def _contradicts_quran(self, item: Dict, quran_verses: List[Dict]) -> bool:
-        """Check if non-Quran content contradicts Quranic verses"""
-        if not quran_verses:
-            return False
-            
-        quran_keywords = set()
-        for verse in quran_verses:
-            quran_keywords.update(verse.get('tags', []))
+    def _filter_and_rank_results(self, 
+                               results: List[Dict], 
+                               source: Optional[KnowledgeSource] = None,
+                               exclude_source: Optional[KnowledgeSource] = None) -> List[Dict]:
+        """Filter results by source and re-rank by score"""
+        filtered = []
+        for r in results:
+            if source and r['source'] != source.value:
+                continue
+            if exclude_source and r['source'] == exclude_source.value:
+                continue
+            filtered.append(r)
         
-        anti_keywords = {
-            'mercy': ['harsh', 'unforgiving'],
-            'comfort': ['despair', 'hopeless']
+        return sorted(filtered, key=lambda x: x.get('score', 0), reverse=True)
+
+    def _filter_contradictions(self, 
+                             items: List[Dict], 
+                             quran_verses: List[Dict]) -> List[Dict]:
+        """Filter out items that contradict Quranic teachings"""
+        if not quran_verses:
+            return items
+            
+        # Extract themes from Quran verses
+        quran_themes = set()
+        for verse in quran_verses:
+            quran_themes.update(verse.get('tags', []))
+            quran_themes.update(self._extract_keywords(verse.get('content', '')))
+        
+        # Define contradiction patterns
+        contradiction_map = {
+            'mercy': ['harsh', 'unforgiving', 'cruel'],
+            'comfort': ['despair', 'hopeless', 'abandon'],
+            'truth': ['falsehood', 'lie', 'deceive']
         }
         
-        for theme in quran_keywords:
-            if any(bad in item['content'].lower() 
-                   for bad in anti_keywords.get(theme, [])):
-                return True
-        return False
-    
-    def _refresh_thematic_index(self):
-        """Improved thematic index builder"""
-        self.thematic_index = {}
+        filtered = []
+        for item in items:
+            item_text = item.get('content', '').lower()
+            should_include = True
+            
+            # Check against Quran themes
+            for theme in quran_themes:
+                for bad_word in contradiction_map.get(theme, []):
+                    if bad_word in item_text:
+                        should_include = False
+                        break
+                if not should_include:
+                    break
+            
+            if should_include:
+                filtered.append(item)
+                
+        return filtered
+
+    def _get_related_results(self, question: str, quran_results: List[Dict]) -> List[Dict]:
+        """Get thematically related results"""
+        if len(quran_results) >= 3:
+            # If we have good Quran matches, use their themes
+            themes = set()
+            for verse in quran_results[:3]:
+                themes.update(verse.get('tags', []))
+                themes.update(self._extract_keywords(verse.get('content', '')))
+            related = []
+            for theme in themes:
+                related.extend(self.thematic_index.get(theme, []))
+            return related[:5]
+        else:
+            # Otherwise expand based on question keywords
+            return self._expand_quran_themes(question)
+
+    def _expand_quran_themes(self, question: str) -> List[Dict]:
+        """Find related content through theme hierarchy"""
+        question_keywords = self._extract_keywords(question)
+        related = []
+        
         for theme, keywords in self.theme_hierarchy.items():
+            if any(keyword in question_keywords for keyword in keywords):
+                related.extend(self.thematic_index.get(theme, []))
+        
+        return sorted(related, key=lambda x: x.get('score', 0), reverse=True)[:5]
+
+    def _extract_keywords(self, text: str) -> List[str]:
+        """Extract important keywords from text"""
+        if not text:
+            return []
+        return [word.lower() for word in text.split() if len(word) > 3 and word.isalpha()]
+
+    def _refresh_thematic_index(self):
+        """Build comprehensive thematic index"""
+        self.thematic_index = defaultdict(list)
+        
+        for theme in self.theme_hierarchy.keys():
             try:
-                # Search using tags instead of source
-                quran_results = self.db.search(
-                    tags=[theme],
-                    source=KnowledgeSource.QURAN,
-                    limit=20
-                ) or []  # Ensure we get an empty list if None is returned
-            
-                bible_results = self.db.search(
-                    tags=[theme],
-                    source=KnowledgeSource.BIBLE, 
-                    limit=5
-                ) or []
-            
-                book_results = self.db.search(
-                    tags=[theme],
-                    source=KnowledgeSource.BOOK,
-                    limit=3
-                ) or []
-        
+                # Get Quran verses with this theme
+                quran_results = self.db.vector_search(
+                    theme, 
+                    limit=20,
+                    source=KnowledgeSource.QURAN.value
+                )
+                
+                # Get other religious texts with this theme
+                bible_results = self.db.vector_search(
+                    theme,
+                    limit=10,
+                    source=KnowledgeSource.BIBLE.value
+                )
+                
+                # Get general wisdom on this theme
+                book_results = self.db.vector_search(
+                    theme,
+                    limit=5,
+                    source=KnowledgeSource.BOOK.value
+                )
+                
+                # Combine and store
                 self.thematic_index[theme] = quran_results + bible_results + book_results
-        
+                
+                logger.debug(f"Indexed {len(self.thematic_index[theme])} items for theme {theme}")
+            
             except Exception as e:
-                logger.error(f"Error building index for theme {theme}: {str(e)}")
-                self.thematic_index[theme] = []
-    
+                logger.error(f"Error indexing theme {theme}: {str(e)}", exc_info=True)
+        
         logger.info(f"Thematic index built with {sum(len(v) for v in self.thematic_index.values())} entries")
+
+    def _empty_response(self) -> Dict[str, List[Dict]]:
+        """Return empty response structure"""
+        return {
+            'verses': [],
+            'wisdom': [],
+            'related': [],
+            'all_results': []
+        }

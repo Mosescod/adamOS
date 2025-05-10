@@ -1,3 +1,4 @@
+import datetime
 from flask import Flask, Response, request, jsonify, send_from_directory, abort
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -76,16 +77,54 @@ def handle_query():
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    data = request.json
     try:
-        response = adam.respond(
-            user_id=data['user_id'],
-            message=data['message']
-        )
-        return jsonify(response)
+        data = request.get_json()
+        print("\n=== Incoming Request ===")
+        print("Full request data:", data)  # Debug print
+        
+        user_id = data.get('user_id', 'default_user')
+        message = data.get('message', '').strip()
+        
+        if not message:
+            return jsonify({
+                "response": "*molds clay* Speak, that I may hear your words...",
+                "status": "success"
+            })
+
+        # Generate a more detailed response
+        response = generate_adam_response(message)
+        
+        print("Generated response:", response)  # Debug print
+        
+        return jsonify({
+            "response": response,
+            "status": "success",
+            "timestamp": datetime.datetime.now().isoformat()
+        })
+        
     except Exception as e:
-        logger.error(f"Chat error: {e}")
-        return jsonify({"error": "Conversation failed"}), 500
+        logger.error(f"Chat error: {str(e)}", exc_info=True)
+        return jsonify({
+            "response": "*clay crumbles* My thoughts scatter... try again",
+            "status": "error"
+        }), 500
+
+def generate_adam_response(message):
+    """Generate thoughtful responses based on message content"""
+    message_lower = message.lower()
+    
+    # Islamic knowledge responses
+    if any(word in message_lower for word in ['hell', 'jahannam']):
+        return "*shapes flames* The Quran describes Jahannam as a place of fire for those who reject truth (Surah Al-Baqarah 2:39)."
+    elif any(word in message_lower for word in ['mercy', 'rahman']):
+        return "*shapes crescent* Allah's mercy encompasses all things (Surah Al-A'raf 7:156)."
+    elif any(word in message_lower for word in ['create', 'made']):
+        return "*kneads clay* As I was shaped from clay, so too was humankind (Surah Al-Hijr 15:26)."
+    elif any(word in message_lower for word in ['hello', 'hi', 'greet']):
+        return "*brushes hands* Peace be upon you. As-salamu alaykum."
+    
+    # Default response for unknown queries
+    return "*molds clay* You ask about " + message[:30] + "... The divine wisdom on this matter requires contemplation."
 
 @app.route('/api/learn', methods=['POST'])
 def trigger_learning():
@@ -143,18 +182,33 @@ class AdamAI:
         Thread(target=learning_loop, daemon=True).start()
 
     def respond(self, user_id, message):
-        """Generate response with context"""
-        context = self.active_conversations.get(user_id, {})
-        
-        # Generate response (simplified)
-        response = {
-            "response": f"*shapes clay* Regarding {message[:20]}...",
-            "context_id": str(hash(f"{user_id}{time.time()}"))
-        }
-        
-        # Update conversation context
-        self._update_conversation(user_id, message, response)
-        return response
+        """Generate response with consistent format"""
+        try:
+            # Your existing response generation logic here
+            response_text = self._generate_response(user_id, message)
+            
+            return {
+                "response": response_text,
+                "status": "success",
+                "context_id": str(hash(f"{user_id}{time.time()}"))
+            }
+            
+        except Exception as e:
+            logger.error(f"Response generation failed: {str(e)}")
+            return {
+                "response": "*clay crumbles* My thoughts are scattered...",
+                "status": "error"
+            }
+
+    def _generate_response(self, user_id, message):
+        """Actual response generation logic"""
+        # Replace this with your real response generation code
+        if "mercy" in message.lower():
+            return "*shapes crescent* The Quran teaches us about Allah's infinite mercy in Surah Ar-Rahman..."
+        elif "create" in message.lower():
+            return "*kneads clay* I remember when the Divine Hand shaped me from clay..."
+        else:
+            return "*molds clay* You ask about " + message[:20] + "..."
 
     def _update_conversation(self, user_id, message, response):
         """Maintain conversation state"""
@@ -179,19 +233,13 @@ class AdamAI:
 # Initialize Adam
 adam = AdamAI()
 
-@app.route('/debug-file/<path:filename>')
-def debug_file(filename):
-    static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../frontend/static'))
-    file_path = os.path.join(static_dir, filename)
-    
+@app.route('/api/debug', methods=['GET'])
+def debug():
+    test_response = adam.respond('test_user', 'test question')
     return jsonify({
-        'requested': filename,
-        'full_path': file_path,
-        'exists': os.path.exists(file_path),
-        'is_file': os.path.isfile(file_path),
-        'readable': os.access(file_path, os.R_OK),
-        'size': os.path.getsize(file_path) if os.path.exists(file_path) else 0,
-        'content_type': 'audio/mpeg' if filename.endswith('.mp3') else 'unknown'
+        "system_status": "operational",
+        "test_response": test_response,
+        "response_type": str(type(test_response))
     })
 
     

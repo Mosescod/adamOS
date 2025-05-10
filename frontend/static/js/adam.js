@@ -8,69 +8,106 @@ document.addEventListener('DOMContentLoaded', () => {
         addMessage('adam', "*kneads clay* Greetings. I am Adam, the first of humankind. Ask me of creation, mercy, or the divine.");
     }, 500);
     
-    // Add message to chat (with support for gestures like *kneads clay*)
     function addMessage(sender, text) {
         const message = document.createElement('div');
         message.className = `message ${sender}-message`;
-        
-        // Format gestures in italics
         const formattedText = text.replace(/\*(.*?)\*/g, '<i>$1</i>');
         message.innerHTML = formattedText;
-        
         messageHistory.appendChild(message);
         scrollToBottom();
     }
     
-    // Scroll to bottom of chat
     function scrollToBottom() {
         messageHistory.scrollTop = messageHistory.scrollHeight;
     }
     
-    // Handle form submission
-    chatForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const message = userInput.value.trim();
+    async function fetchAdamResponse(message) {
+    try {
+        console.log('[Frontend] Sending message:', message);
         
-        if (message) {
-            addMessage('user', message);
-            userInput.value = '';
-            
-            // Show Adam's typing indicator (clay-themed)
-            const typing = document.createElement('div');
-            typing.className = 'message typing-indicator';
-            typing.innerHTML = '<i>shapes clay</i> <span>...</span>';
-            messageHistory.appendChild(typing);
-            scrollToBottom();
-            
-            // Get Adam's actual response from your Python backend
-            try {
-                const response = await fetchAdamResponse(message);
-                messageHistory.removeChild(typing);
-                addMessage('adam', response);
-            } catch (error) {
-                messageHistory.removeChild(typing);
-                addMessage('adam', getFallbackResponse(message));
-                console.error("API error:", error);
-            }
-        }
-    });
-    
-    // Fetch response from your Python backend
-    async function askAdam(message) {
         const response = await fetch('/api/chat', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
             },
             body: JSON.stringify({
                 user_id: getUserId(),
                 message: message
             })
         });
-        return await response.json();
+
+        console.log('[Frontend] Received response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('[Frontend] Full response data:', data);
+        
+        if (data.status !== 'success') {
+            throw new Error(data.response || 'Unknown error from server');
+        }
+
+        return data.response;
+    } catch (error) {
+        console.error('[Frontend] Error in fetchAdamResponse:', error);
+        throw error;
+    }
+}
+
+    // Update your chat form event listener
+    chatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const message = userInput.value.trim();
+    
+        if (!message) return;
+
+        addMessage('user', message);
+        userInput.value = '';
+    
+        // Show typing indicator
+        const typing = addTypingIndicator();
+    
+        try {
+            const response = await fetchAdamResponse(message);
+            messageHistory.removeChild(typing);
+        
+            // Ensure we have a response to display
+            if (response) {
+                addMessage('adam', response);
+            } else {
+                addMessage('adam', getFallbackResponse(message));
+            }
+        
+        } catch (error) {
+            console.error('[Frontend] Chat error:', error);
+            messageHistory.removeChild(typing);
+            addMessage('adam', getFallbackResponse(message));
+        }
+    });
+
+    // Helper function for typing indicator
+    function addTypingIndicator() {
+        const typing = document.createElement('div');
+        typing.className = 'message typing-indicator';
+        typing.innerHTML = '<i>shapes clay</i> <span class="typing-dots">...</span>';
+        messageHistory.appendChild(typing);
+        scrollToBottom();
+        return typing;
     }
     
-    // Fallback responses if API fails (in Adam's style)
+    function getUserId() {
+        // Generate or retrieve a persistent user ID
+        let userId = localStorage.getItem('adam_user_id');
+        if (!userId) {
+            userId = 'user_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('adam_user_id', userId);
+        }
+        return userId;
+    }
+    
     function getFallbackResponse(query) {
         const lowerQuery = query.toLowerCase();
         const fallbacks = {
@@ -86,25 +123,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return fallbacks.mercy;
         } else if (lowerQuery.includes('eve') || lowerQuery.includes('wife')) {
             return fallbacks.eve;
-        } else {
-            return fallbacks.default;
         }
+        return fallbacks.default;
     }
     
-    // Allow Shift+Enter for new lines, Enter to send
     userInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             chatForm.dispatchEvent(new Event('submit'));
         }
     });
-        // When ADAM sends a response:
-    const responseData = {
-        query: userQuestion,
-        response: aiResponse,
-        responseId: 'res-' + Date.now(),
-        timestamp: new Date().toISOString()
-    };
-    localStorage.setItem('adam-interaction', JSON.stringify(responseData));
-    localStorage.removeItem('adam-interaction'); // Trigger event
 });
