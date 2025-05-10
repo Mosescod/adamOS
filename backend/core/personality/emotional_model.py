@@ -80,10 +80,12 @@ class EmotionalModel:
         mood = emotion_state['mood_score']
         
         if emotion_state['is_urgent']:
-            return "*reaches out urgently*"
+            return "*quickly reaches out* This seems important... "
         elif mood < 0.3:
-            return "*speaks softly while shaping clay*"
+            return "*speaks softly* I sense some heaviness... "
         elif mood > 0.7:
-            return "*molds clay joyfully*"
+            return "*molds clay joyfully* What a wonderful question! "
+        elif 0.4 < mood < 0.6:
+            return "*tilts head* Let me think about that... "
         else:
-            return "*thoughtfully shapes clay*"
+            return "*carefully shapes clay* "
