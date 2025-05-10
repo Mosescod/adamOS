@@ -33,42 +33,33 @@ document.addEventListener('DOMContentLoaded', () => {
         messageHistory.scrollTop = messageHistory.scrollHeight;
     }
     
-    // Improved API response handler
     async function fetchAdamResponse(message) {
         try {
             const userId = getUserId();
-            console.log(`[API Request] User ${userId} sending:`, message);
-            
-            const response = await fetch(`${API_BASE_URL}/system/status`, {
-                method: 'GET',
+            console.log('[API] Sending message:', message);
+        
+            const response = await fetch(`${API_BASE_URL}/chat`, {
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json'
                 },
                 body: JSON.stringify({
                     user_id: userId,
                     message: message
-                })
+                }),
+                credentials: 'include' // Important for cookies/CORS
             });
 
-            console.log('[API Response] Status:', response.status);
-            
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                const error = await response.json();
+                throw new Error(error.message || 'API request failed');
             }
 
             const data = await response.json();
-            console.log('[API Response] Data:', data);
-            
-            if (data.status !== 'success') {
-                throw new Error(data.message || 'Received unsuccessful response from server');
-            }
-
             return data.response;
         } catch (error) {
             console.error('[API Error]', error);
-            throw error; // Re-throw for handling in the UI
+            throw error;
         }
     }
 

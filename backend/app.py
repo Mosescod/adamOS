@@ -8,20 +8,46 @@ import logging
 from threading import Thread
 import time
 
-# Initialize logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
+# Log the current working directory and paths
+logger.info(f"Current working directory: {os.getcwd()}")
+frontend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../frontend'))
+logger.info(f"Frontend path: {frontend_path}")
+logger.info(f"Static folder exists: {os.path.exists(os.path.join(frontend_path, 'static'))}")
 app = Flask(__name__)
 CORS(app)
 app = Flask(__name__, static_folder='../frontend/static')
-load_dotenv()
+CORS(app, resources={
+    r"/api/*": {
+        "origins": "*",  # For development only (lock this down in production)
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Accept"],
+        "supports_credentials": True,
+        "max_age": 86400
+    }
+})
+
+load_dotenv('.env')
 
 adam = AdamAI()
 
-@app.route('/api/chat', methods=['POST'])
+@app.route('/api/chat', methods=['POST','OPTION'])
 def handle_chat():
     """Main chat endpoint"""
+    logger.info("Incoming request headers: %s", request.headers)
+    logger.info("Request method: %s", request.method)
+    if request.method == 'OPTIONS':
+        response = jsonify({"status": "preflight"})
+        response.headers.add("Access-Control-Allow-Headers", "Content-Type")
+        response.headers.add("Access-Control-Allow-Methods", "POST")
+        return response
+    
     try:
         data = request.get_json()
         
