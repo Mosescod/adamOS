@@ -1,4 +1,4 @@
-# 🧠 Adam AI - The Thoughtful Conversationalist
+# Adam AI - The Thoughtful Conversationalist
 
 ![Adam AI Banner](https://user-images.githubusercontent.com/65280027/178123456-abc12345-6789-4def-abc1-23456789abcd.png)
 
@@ -31,17 +31,17 @@ response = adam.query("Explain consciousness")
 print(response)
 # "*shapes clay* Consciousness is like the river that flows..."
 ```
-
+## Feature	Description
 <div align="center">
-Feature	Description
 � Clay Metaphors	Unique responses framed through creative clay-working analogies
 🧠 Contextual Memory	Remembers conversation history for coherent multi-turn dialogues
 ⚡ Real-time Performance	Tracks and displays response times with visual feedback
 🔄 Continuous Learning	Improves through interaction with a built-in memory system
 🛡️ Safety Filters	Built-in ethical protocols for responsible AI interactions
 
+## 🎥 Demo
+
 </div>
-🎥 Demo
 https://github.com/Mosescod/adamOS/assets/65280027/abc12345-6789-4def-abc1-23456789abcd
 
 Tip: Try the live demo or watch the demo video
@@ -74,7 +74,7 @@ python app.py
 Visit http://localhost:5000 to start chatting with Adam!
 ```
 
-🔌 API Usage
+## 🔌 API Usage
 Adam provides a simple REST API for integration:
 
 ```javascript
@@ -94,7 +94,7 @@ Endpoint	Method	Description
 /api/system/status	GET	Health check 
 ```
 
-🛠️ Tech Stack
+## 🛠️ Tech Stack
 <div align="center">
 Python
 Flask
@@ -102,8 +102,8 @@ JavaScript
 HTML5
 CSS3
 
+## 🤝 Contributing
 </div>
-🤝 Contributing
 We welcome contributions! Please follow these steps:
 
 Fork the repository
@@ -118,7 +118,7 @@ Open a Pull Request
 
 See our Contribution Guidelines for more details.
 
-📄 License
+## 📄 License
 Distributed under the MIT License. See LICENSE for more information.
 
 <div align="center">
