@@ -2,7 +2,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const messageHistory = document.getElementById('message-history');
     const chatForm = document.getElementById('chat-form');
     const userInput = document.getElementById('user-input');
-    const API_BASE_URL = 'http://localhost:8000/api'; // Update if your API is hosted elsewhere
+    const responseTimeElement = document.getElementById('response-time-value');
+    const API_BASE_URL = 'http://localhost:8000/api'; // Changed to default Flask port
+    
+    // Performance tracking variables
+    let requestStartTime;
+    let typingStartTime;
+    const performanceHistory = [];
     
     // Adam's signature greeting
     setTimeout(() => {
@@ -33,23 +39,52 @@ document.addEventListener('DOMContentLoaded', () => {
         messageHistory.scrollTop = messageHistory.scrollHeight;
     }
     
+    // Update response time display with visual feedback
+    function updateResponseTime(time) {
+        const timeValue = typeof time === 'number' ? time.toFixed(2) + 's' : '--';
+        responseTimeElement.textContent = timeValue;
+        
+        // Visual feedback based on response time
+        if (typeof time === 'number') {
+            responseTimeElement.className = '';
+            if (time < 1) responseTimeElement.classList.add('fast');
+            else if (time < 2) responseTimeElement.classList.add('medium');
+            else responseTimeElement.classList.add('slow');
+            
+            // Animate the change
+            responseTimeElement.style.transform = 'scale(1.2)';
+            setTimeout(() => {
+                responseTimeElement.style.transform = 'scale(1)';
+            }, 300);
+        }
+    }
+    
     async function fetchAdamResponse(message) {
+        requestStartTime = performance.now();
+        updateResponseTime(0); // Reset timer
+        
         try {
             const userId = getUserId();
             console.log('[API] Sending message:', message);
-        
+            
             const response = await fetch(`${API_BASE_URL}/chat`, {
                 method: 'POST',
+                mode: 'cors',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Accept': 'application/json'
                 },
                 body: JSON.stringify({
                     user_id: userId,
                     message: message
                 }),
-                credentials: 'include' // Important for cookies/CORS
+                credentials: 'include'
             });
 
+            const responseTime = (performance.now() - requestStartTime) / 1000;
+            updateResponseTime(responseTime);
+            trackPerformance(responseTime);
+            
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.message || 'API request failed');
@@ -59,8 +94,20 @@ document.addEventListener('DOMContentLoaded', () => {
             return data.response;
         } catch (error) {
             console.error('[API Error]', error);
+            updateResponseTime(null); // Show error state
             throw error;
         }
+    }
+    
+    // Track performance metrics
+    function trackPerformance(time) {
+        performanceHistory.push(time);
+        if (performanceHistory.length > 5) performanceHistory.shift();
+        console.log(`Average response time: ${calculateAverage().toFixed(2)}s`);
+    }
+    
+    function calculateAverage() {
+        return performanceHistory.reduce((a, b) => a + b, 0) / performanceHistory.length;
     }
 
     // Enhanced chat form handler
@@ -80,29 +127,28 @@ document.addEventListener('DOMContentLoaded', () => {
     
         try {
             const response = await fetchAdamResponse(message);
+            const typingDuration = (performance.now() - typingStartTime) / 1000;
+            updateResponseTime(typingDuration);
             messageHistory.removeChild(typing);
             
-            // Only display if we got a valid response
             if (response && typeof response === 'string') {
                 addMessage('adam', response);
             }
-            // No else case - we'll remain silent if no response
         
         } catch (error) {
             console.error('[Chat Error]', error);
             messageHistory.removeChild(typing);
-            
-            // Show error to user in a subtle way
             addMessage('adam', "*pauses clay shaping* My connection to divine wisdom wavers...");
         }
     });
 
     // Improved typing indicator with animation
     function addTypingIndicator() {
+        typingStartTime = performance.now();
+        
         const typing = document.createElement('div');
         typing.className = 'message typing-indicator';
         
-        // Create animated dots
         const dots = document.createElement('span');
         dots.className = 'typing-dots';
         dots.innerHTML = '<span>.</span><span>.</span><span>.</span>';
@@ -110,7 +156,6 @@ document.addEventListener('DOMContentLoaded', () => {
         typing.innerHTML = '<i>shapes clay</i> ';
         typing.appendChild(dots);
         
-        // Add animation
         const dotSpans = dots.querySelectorAll('span');
         dotSpans.forEach((dot, index) => {
             dot.style.animation = `typingPulse 1.4s infinite ${index * 0.3}s`;
@@ -121,18 +166,15 @@ document.addEventListener('DOMContentLoaded', () => {
         return typing;
     }
     
-    // Persistent user ID with better generation
+    // Persistent user ID
     function getUserId() {
         let userId = localStorage.getItem('adam_user_id');
         if (!userId) {
-            // More robust ID generation
             userId = 'usr-' + 
                     Date.now().toString(36) + 
                     '-' + 
                     Math.random().toString(36).substr(2, 6);
             localStorage.setItem('adam_user_id', userId);
-            
-            // Log new user session
             console.log('[User Session] New user ID generated:', userId);
         }
         return userId;
@@ -142,15 +184,13 @@ document.addEventListener('DOMContentLoaded', () => {
     userInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            
-            // Only submit if there's actual content
             if (userInput.value.trim()) {
                 chatForm.dispatchEvent(new Event('submit'));
             }
         }
     });
 
-    // Add some CSS for our typing animation
+    // Add CSS styles
     const style = document.createElement('style');
     style.textContent = `
         @keyframes typingPulse {
@@ -161,6 +201,15 @@ document.addEventListener('DOMContentLoaded', () => {
             opacity: 0.4;
             font-weight: bold;
         }
+        #response-time-value {
+            display: inline-block;
+            min-width: 40px;
+            text-align: right;
+            transition: all 0.3s ease;
+        }
+        #response-time-value.fast { color: #4CAF50; }
+        #response-time-value.medium { color: #FFC107; }
+        #response-time-value.slow { color: #F44336; }
     `;
     document.head.appendChild(style);
 });
