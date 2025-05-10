@@ -36,36 +36,35 @@ class SacredScanner:
         logger.info(f"Thematic index built with {sum(len(v) for v in self.thematic_index.values())} entries")
 
     def scan(self, question: str, context: Dict = None) -> Dict[str, List[Dict]]:
-        """
-        Quran-first knowledge retrieval.
-        Returns: {'verses': [], 'wisdom': []} (sources anonymized)
-        """
+        """Quran-first knowledge retrieval with proper return format"""
         try:
             # Get Quran results
-            quran_results = self.db.search(
+            quran_results = self.db.hybrid_search(
                 query=question,
-                source=KnowledgeSource.QURAN,
+                source=KnowledgeSource.QURAN.value,  # Use .value for enum
                 limit=3
             )
         
             # Get other results
             other_results = []
             for source in [KnowledgeSource.BIBLE, KnowledgeSource.BOOK]:
-                results = self.db.search(
+                results = self.db.hybrid_search(
                     query=question,
-                    source=source,
+                    source=source.value,  # Use .value for enum
                     limit=2
                 )
                 other_results.extend(results)
         
+            # Return with correct keys
             return {
                 'quran': quran_results,
-                'other': other_results
-                }
+                'other': other_results,
+                'verses': quran_results,  # Duplicate for compatibility
+                'wisdom': other_results   # Duplicate for compatibility
+            }
         except Exception as e:
             logger.error(f"Scan error: {str(e)}")
-            return {'quran': [], 'other': []}
-    pass
+            return {'quran': [], 'other': [], 'verses': [], 'wisdom': []}
 
     def _expand_quran_themes(self, question: str) -> List[Dict]:
         """Find related Quranic verses through theme hierarchy"""
@@ -97,3 +96,28 @@ class SacredScanner:
                    for bad in anti_keywords.get(theme, [])):
                 return True
         return False
+    
+    def _refresh_thematic_index(self):
+        """Improved thematic index builder"""
+        self.thematic_index = {}
+        for theme, keywords in self.theme_hierarchy.items():
+            # Search using tags instead of source
+            quran_results = self.db.search(
+                tags=[theme],
+                source=KnowledgeSource.QURAN,
+                limit=20
+            )
+            bible_results = self.db.search(
+                tags=[theme],
+                source=KnowledgeSource.BIBLE, 
+                limit=5
+            )
+            book_results = self.db.search(
+                tags=[theme],
+                source=KnowledgeSource.BOOK,
+                limit=3
+            )
+        
+            self.thematic_index[theme] = quran_results + bible_results + book_results
+    
+        logger.info(f"Thematic index built with {sum(len(v) for v in self.thematic_index.values())} entries")

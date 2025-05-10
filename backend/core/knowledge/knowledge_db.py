@@ -3,10 +3,11 @@ import json
 from typing import Dict, List, Optional, Union
 from datetime import datetime
 import numpy as np
-from pymongo import monitoring
+from pymongo import UpdateOne, monitoring
 import logging
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from pymongo.errors import PyMongoError
+from sentence_transformers import SentenceTransformer
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 import requests
 import urllib.parse
@@ -47,6 +48,8 @@ class KnowledgeDatabase:
         self.retry_writes = True  
         self.max_pool_size = 100  
         self.min_pool_size = 5
+
+        self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
     
         self._connect()
 
@@ -143,85 +146,144 @@ class KnowledgeDatabase:
             return False
         
     def import_quran(self, translation: str = "en.asad"):
-        """Helper method to import Quran from API"""
+        """Enhanced Quran importer with vector embeddings"""
         try:
             api_base = "https://api.alquran.cloud/v1"
-            
-            # Get surahs metadata
-            surahs_response = requests.get(f"{api_base}/meta")
-            surahs_response.raise_for_status()
-            surahs_data = surahs_response.json()['data']['surahs']['references']
-            
+        
             # Get Quran text
             quran_response = requests.get(f"{api_base}/quran/{translation}")
             quran_response.raise_for_status()
             quran_data = quran_response.json()['data']['surahs']
-            
-            # Process and store verses
+        
+            # Initialize embedding model
+            model = SentenceTransformer('all-MiniLM-L6-v2')
+        
+            # Process verses with embeddings
             verse_ids = []
             for surah in quran_data:
-                metadata = {
-                    "title": surah['englishName'],
-                    "author": "Allah",
-                    "language": "en",
-                    "translation": translation,
-                    "surah_number": surah['number'],
-                    "surah_name": surah['name'],
-                    "revelation_type": surah['revelationType']
-                }
+                for ayah in surah['ayahs']:
+                    # Generate embedding
+                    embedding = model.encode(ayah['text']).tolist()
                 
-                verses = [ayah['text'] for ayah in surah['ayahs']]
-                verse_ids.extend(self.store_knowledge(
-                    source=KnowledgeSource.QURAN,
-                    content=verses,
-                    metadata=metadata
-                ))
-            
-            logger.info(f"Imported Quran with {len(verse_ids)} verses")
+                    # Prepare metadata
+                    metadata = {
+                        "reference": f"{surah['number']}:{ayah['numberInSurah']}",
+                        "surah_name": surah['englishName'],
+                        "translation": translation,
+                        "revelation_type": surah['revelationType']
+                    }
+                
+                    # Auto-generate tags
+                    tags = self._generate_tags(ayah['text'])
+                
+                    # Store with embedding
+                    verse_ids.append(self.store_knowledge(
+                        source=KnowledgeSource.QURAN,
+                        content=ayah['text'],
+                        metadata=metadata,
+                        tags=tags,
+                        vector=embedding
+                    ))
+        
+            logger.info(f"Imported Quran with {len(verse_ids)} verses and embeddings")
             return verse_ids
-            
+        
         except Exception as e:
-            logger.error(f"Failed to import Quran: {str(e)}")
+            logger.error(f"Quran import failed: {str(e)}")
             raise
 
-    def _initialize_collections(self):
-        """Ensure all collections exist with proper indexes"""
-        collections_config = {
-            'entries': [
-                [
-                    ("source", ASCENDING),
-                    ("metadata.title", ASCENDING),
-                    ("metadata.author", ASCENDING),
-                    ("created_at", DESCENDING)  # New
-                ],
-                {'unique': False, 'background': True}  # Background indexing
-            ],
-            'indexes': [
-                [
-                    ("knowledge_id", ASCENDING),
-                    ("index_type", ASCENDING),
-                    ("tags", ASCENDING),
-                    ("timestamp", DESCENDING)  # New
-                ],
-                {'unique': False, 'background': True}
-            ],
-            'embeddings': [  # New collection for vector search
-                [
-                    ("vector", "text"),
-                    ("knowledge_id", ASCENDING)
-                ],
-                {'unique': True}
-            ]
+    def import_bible(self, version: str = "kjv"):
+        """Import Bible verses from API"""
+        try:
+            api_base = "https://bible-api.com"
+            model = SentenceTransformer('all-MiniLM-L6-v2')
+        
+            # Example books to import
+            books = ["genesis", "psalms", "matthew"]  
+            verse_ids = []
+        
+            for book in books:
+                response = requests.get(f"{api_base}/{book}")
+                data = response.json()
+            
+                for verse in data['verses']:
+                    embedding = model.encode(verse['text']).tolist()
+                    tags = self._generate_tags(verse['text'])
+                
+                    verse_ids.append(self.store_knowledge(
+                        source=KnowledgeSource.BIBLE,
+                        content=verse['text'],
+                        metadata={
+                            "book": verse['book_name'],
+                            "chapter": verse['chapter'],
+                            "verse": verse['verse'],
+                            "version": version
+                        },
+                        tags=tags,
+                        vector=embedding
+                    ))
+        
+            logger.info(f"Imported {len(verse_ids)} Bible verses")
+            return verse_ids
+        
+        except Exception as e:
+            logger.error(f"Bible import failed: {str(e)}")
+            raise
+
+    def import_wikipedia(self, topics: List[str]):
+        """Import Wikipedia summaries"""
+        try:
+            model = SentenceTransformer('all-MiniLM-L6-v2')
+            entry_ids = []
+        
+            for topic in topics:
+                response = requests.get(
+                    f"https://en.wikipedia.org/api/rest_v1/page/summary/{topic}"
+                )
+                data = response.json()
+            
+                if 'extract' in data:
+                    embedding = model.encode(data['extract']).tolist()
+                    tags = [topic.lower().replace(" ", "_")]
+                
+                    entry_ids.append(self.store_knowledge(
+                        source=KnowledgeSource.WIKIPEDIA,
+                        content=data['extract'],
+                        metadata={
+                            "title": data.get('title', topic),
+                            "url": data.get('content_urls', {}).get('desktop', {}).get('page')
+                        },
+                        tags=tags,
+                        vector=embedding
+                    ))
+        
+            logger.info(f"Imported {len(entry_ids)} Wikipedia entries")
+            return entry_ids
+        
+        except Exception as e:
+            logger.error(f"Wikipedia import failed: {str(e)}")
+            raise
+
+    def _generate_tags(self, text: str) -> List[str]:
+        """Auto-generate thematic tags from text"""
+        themes = {
+            'mercy': ['forgiv', 'merciful', 'compassion'],
+            'faith': ['believe', 'faith', 'trust'],
+            'wisdom': ['wisdom', 'knowledge', 'understand']
         }
     
-        for col_name, (index_fields, index_options) in collections_config.items():
-            if col_name not in self.db.list_collection_names():
-                self.db.create_collection(col_name)
-                logger.info(f"Created collection: {col_name}")
-        
-            collection = getattr(self.db, col_name)
-            if not self._index_exists(collection, index_fields):
-                collection.create_index(index_fields, **index_options)
+        text_lower = text.lower()
+        return [theme for theme, keywords in themes.items() 
+                if any(kw in text_lower for kw in keywords)]
+
+    def _initialize_collections(self):
+        """Initialize collections with proper indexes"""
+        # Standard indexes
+        self.entries.create_index([("source", ASCENDING)])
+        self.entries.create_index([("content", "text")])
+    
+        # No need to create vector index here - it's created in Atlas UI
+        logger.info("Standard indexes created - vector index must be created via Atlas UI")
 
     def _index_exists(self, collection, fields) -> bool:
         """Check if an index already exists"""
@@ -229,36 +291,22 @@ class KnowledgeDatabase:
         field_keys = [f[0] for f in fields]
         return any(set(field_keys) == set(idx['key'].keys()) for idx in existing.values())
 
-    def store_knowledge(self, source: KnowledgeSource, content: Union[str, List[str]],
-                        metadata: Dict, version: str = "1.0") -> List[str]:
-        """Store knowledge content with versioning"""
-        
-        if isinstance(content, str):
-            content = [content]
-        
-        entries_to_insert = []
-        for idx, text in enumerate(content):
-            entry = {
-                "source": source.value,                    "content": text,
-                "metadata": metadata,
-                "version": version,  # New
-                "created_at": time.time(),
-                "modified_at": time.time(),
-                "is_current": True  # New
-                }
-            
-            entries_to_insert.append(entry)
-        
-        # Insert in batches
-        batch_size = 100
-        inserted_ids = []
-        for i in range(0, len(entries_to_insert), batch_size):
-            result = self.entries.insert_many(entries_to_insert[i:i+batch_size])
-            inserted_ids.extend(result.inserted_ids)
-            time.sleep(0.1)
-        
-        logger.info(f"Stored {len(inserted_ids)} entries from {source.value} v{version}")
-        return inserted_ids
+    def store_knowledge(self, source: KnowledgeSource, content: str, 
+                   metadata: Dict, tags: List[str], vector: List[float]):
+        """Store knowledge with all required fields"""
+        doc = {
+            "source": source.value,
+            "content": content,
+            "metadata": metadata,
+            "tags": tags,
+            "vector": vector,
+            "created_at": datetime.utcnow(),
+            "modified_at": datetime.utcnow()
+        }
+    
+        result = self.entries.insert_one(doc)
+        self.index_content(result.inserted_id, "thematic", tags)
+        return result.inserted_id
         
     def update_knowledge(self, knowledge_id: str, new_content: str, 
                     new_metadata: Dict = None, new_version: str = None):
@@ -332,34 +380,63 @@ class KnowledgeDatabase:
             logger.error(f"Failed to create index: {str(e)}")
             raise
 
-    def vector_search(self, query_vector: List[float], limit: int = 5) -> List[Dict]:
-        """Search using vector similarity"""
-        try:
-            # Convert numpy array to list if needed
-            if isinstance(query_vector, np.ndarray):
-                query_vector = query_vector.tolist()
-
-            pipeline = [
-                {
-                    "$vectorSearch": {
-                        "index": "vector_index",
-                        "path": "vector",
-                        "queryVector": query_vector,
-                        "numCandidates": 100,
-                        "limit": limit
-                    }
-                },
-                {
-                    "$project": {
-                        "_id": 1,
-                        "content": 1,
-                        "source": 1,
-                        "metadata": 1,
-                        "score": {"$meta": "vectorSearchScore"}
-                    }
+    def hybrid_search(self, query: str, source: str = None, limit: int = 5) -> List[Dict]:
+        """Hybrid search that accepts source filtering"""
+        # Create base query filter
+        query_filter = {}
+        if source:
+            query_filter["source"] = source
+    
+        # Vector search pipeline
+        query_embedding = self.embedding_model.encode(query).tolist()
+        pipeline = [
+            {
+                "$vectorSearch": {
+                    "index": "vector_index",
+                    "path": "vector",
+                    "queryVector": query_embedding,
+                    "numCandidates": 100,
+                    "limit": limit,
+                    "filter": query_filter  # Add source filter here
                 }
-            ]
-        
+            },
+            {
+                "$project": {
+                    "_id": 1,
+                    "content": 1,
+                    "source": 1,
+                    "metadata": 1,
+                    "score": {"$meta": "vectorSearchScore"}
+                }
+            }
+        ]
+    
+        return list(self.entries.aggregate(pipeline))
+
+    def vector_search(self, query_vector: List[float], limit: int = 5) -> List[Dict]:
+        """Perform vector search using Atlas"""
+        pipeline = [
+            {
+                "$vectorSearch": {
+                    "index": "vector_index",  # Must match your Atlas index name
+                    "path": "vector",        # Field containing embeddings
+                    "queryVector": query_vector,
+                    "numCandidates": 100,    # Number of potential matches
+                    "limit": limit            # Final results
+                }
+            },
+            {
+                "$project": {
+                    "_id": 1,
+                    "content": 1,
+                    "source": 1,
+                    "metadata": 1,
+                    "score": {"$meta": "vectorSearchScore"}
+                }
+            }
+        ]
+    
+        try:
             return list(self.entries.aggregate(pipeline))
         except Exception as e:
             logger.error(f"Vector search failed: {str(e)}")
@@ -373,54 +450,26 @@ class KnowledgeDatabase:
             logger.error(f"Failed to get entry {knowledge_id}: {str(e)}")
             return None
 
-    def search(
-        self,
-        query: Optional[str] = None,
-        source: Optional[KnowledgeSource] = None,
-        tags: Optional[List[str]] = None,
-        limit: int = 10
-    ) -> List[Dict]:
-        """
-        Flexible search across knowledge base
-        Args:
-            query: Text search query (optional)
-            source: Filter by source (optional)
-            tags: Filter by tags (optional)
-            limit: Maximum results to return
-        """
-        try:
-            search_filter = {}
-            
-            if source:
-                search_filter["source"] = source.value
-            
-            if query:
-                search_filter["$text"] = {"$search": query}
-            
-            if tags:
-                search_filter["indexes.tags"] = {"$in": tags}
-            
-            pipeline = [
-                {"$match": search_filter},
-                {"$limit": limit}
-            ]
-            
-            # If searching by tags, join with indexes collection
-            if tags:
-                pipeline.insert(0, {
-                    "$lookup": {
-                        "from": "indexes",
-                        "localField": "_id",
-                        "foreignField": "knowledge_id",
-                        "as": "indexes"
-                    }
-                })
-            
-            return list(self.entries.aggregate(pipeline))
-            
-        except Exception as e:
-            logger.error(f"Search failed: {str(e)}")
-            return []
+    def search(self, query: str = None, source: KnowledgeSource = None, 
+           tags: List[str] = None, limit: int = 10) -> List[Dict]:
+        """Improved search with proper source handling"""
+        query_filter = {}
+    
+        if source:
+            query_filter["source"] = source.value  # Convert enum to string
+        
+        if tags:
+            query_filter["tags"] = {"$in": tags}
+        
+        if query:
+            query_filter["$text"] = {"$search": query}
+    
+        return list(self.entries.find(query_filter).limit(limit))
+
+    def _generate_embedding(self, text: str) -> List[float]:
+        """Generate embedding for vector search"""
+        model = SentenceTransformer('all-MiniLM-L6-v2')
+        return model.encode(text).tolist()
 
     def get_all_sources(self) -> List[str]:
         """Get list of all knowledge sources in database"""
@@ -430,7 +479,29 @@ class KnowledgeDatabase:
             logger.error(f"Failed to get sources: {str(e)}")
             return []
 
-      
+    def backfill_embeddings(self):
+        """Generate embeddings for existing documents"""
+        model = SentenceTransformer('all-MiniLM-L6-v2')
+    
+        for doc in self.entries.find({"vector": {"$exists": False}}):
+            embedding = model.encode(doc['content']).tolist()
+            self.entries.update_one(
+                {"_id": doc['_id']},
+                {"$set": {"vector": embedding}}
+            )
+        
+            
+    def _batch_cursor(self, cursor, batch_size):
+        """Helper to batch cursor results"""
+        batch = []
+        for doc in cursor:
+            batch.append(doc)
+            if len(batch) >= batch_size:
+                yield batch
+                batch = []
+        if batch:
+            yield batch
+
     def get_all_entries(self, limit: int = 1000) -> List[Dict]:
         """Get all knowledge entries with basic fields"""
         return list(self.entries.find({}, limit=limit))

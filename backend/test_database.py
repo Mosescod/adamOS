@@ -1,28 +1,191 @@
-from pymongo import MongoClient
 import os
+from pymongo import MongoClient
+from pprint import pprint
+import logging
 from dotenv import load_dotenv
+from sentence_transformers import SentenceTransformer
 
-# Step 1: Load .env
-load_dotenv()
-uri = os.getenv("MONGODB_URI")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Step 2: Connect to MongoDB Atlas
-try:
-    client = MongoClient(uri)
-    db = client.get_default_database()  # Uses db in URI (e.g., qurbanDB)
+load_dotenv('.env')
 
-    # Step 3: Insert test data
-    test_collection = db["test_agents"]
-    test_agent = {
-        "name": "Test User",
-        "phone": "08000000000"
-    }
-    insert_result = test_collection.insert_one(test_agent)
-    print(f"✅ Inserted Test Agent with ID: {insert_result.inserted_id}")
+class AtlasSearchVerifier:
+    def __init__(self, connection_string: str):
+        self.client = MongoClient(
+            connection_string,
+            connectTimeoutMS=30000,
+            socketTimeoutMS=None,
+            serverSelectionTimeoutMS=30000
+        )
+        self.db = self.client["AdamAI-KnowledgeDB"]
+        self.entries = self.db.entries
+        self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
+        
+    def verify_basic_queries(self):
+        """Test basic CRUD operations"""
+        logger.info("\n🔍 BASIC QUERY VERIFICATION")
+        
+        # Count documents
+        total = self.entries.count_documents({})
+        quran_count = self.entries.count_documents({"source": "quran"})
+        logger.info(f"Total documents: {total}")
+        logger.info(f"Quran verses: {quran_count}")
+        
+        # Fetch sample documents
+        logger.info("\nSample Quran verse:")
+        quran_verse = self.entries.find_one({"source": "quran"})
+        pprint({k: v for k, v in quran_verse.items() if k != 'vector'})
+        
+        logger.info("\nSample Bible verse:")
+        bible_verse = self.entries.find_one({"source": "bible"})
+        pprint({k: v for k, v in bible_verse.items() if k != 'vector'})
 
-    # Step 4: Retrieve inserted data
-    result = test_collection.find_one({"_id": insert_result.inserted_id})
-    print("📦 Retrieved from DB:", result)
+    def verify_text_search(self):
+        """Test Atlas text search"""
+        logger.info("\n🔎 TEXT SEARCH VERIFICATION")
+        
+        try:
+            # Simple text search
+            results = list(self.entries.aggregate([
+                {
+                    "$search": {
+                        "index": "adamai_search",
+                        "text": {
+                            "query": "mercy",
+                            "path": "content"
+                        }
+                    }
+                },
+                {"$limit": 2},
+                {
+                    "$project": {
+                        "content": 1,
+                        "source": 1,
+                        "score": {"$meta": "searchScore"}
+                    }
+                }
+            ]))
+            
+            logger.info("Search results for 'mercy':")
+            for doc in results:
+                print(f"- Score: {doc['score']:.3f}")
+                print(f"  {doc['content'][:80]}...")
+                print(f"  Source: {doc['source']}\n")
+                
+        except Exception as e:
+            logger.error(f"Text search failed: {str(e)}")
 
-except Exception as e:
-    print("❌ Error connecting to MongoDB:", e)
+    def verify_vector_search(self):
+        """Test vector similarity search"""
+        logger.info("\n🧠 VECTOR SEARCH VERIFICATION")
+        
+        try:
+            # Get a sample query embedding
+            query = "forgiveness in Islam"
+            query_vector = self.embedder.encode(query).tolist()
+            
+            results = list(self.entries.aggregate([
+                {
+                    "$vectorSearch": {
+                        "index": "adamai_search",
+                        "path": "vector",
+                        "queryVector": query_vector,
+                        "numCandidates": 50,
+                        "limit": 3
+                    }
+                },
+                {
+                    "$project": {
+                        "content": 1,
+                        "source": 1,
+                        "score": {"$meta": "vectorSearchScore"}
+                    }
+                }
+            ]))
+            
+            logger.info(f"Vector search results for '{query}':")
+            for doc in results:
+                print(f"- Score: {doc['score']:.3f}")
+                print(f"  {doc['content'][:80]}...")
+                print(f"  Source: {doc['source']}\n")
+                
+        except Exception as e:
+            logger.error(f"Vector search failed: {str(e)}")
+
+    def verify_hybrid_search(self):
+        """Test combined text + vector search"""
+        logger.info("\n🔗 HYBRID SEARCH VERIFICATION")
+        
+        try:
+            query = "prophet Muhammad"
+            query_vector = self.embedder.encode(query).tolist()
+            
+            results = list(self.entries.aggregate([
+                {
+                    "$search": {
+                        "index": "adamai_search",
+                        "compound": {
+                            "should": [
+                                {
+                                    "text": {
+                                        "query": query,
+                                        "path": "content",
+                                        "score": {"boost": {"value": 1.5}}
+                                    }
+                                },
+                                {
+                                    "knnBeta": {
+                                        "vector": query_vector,
+                                        "path": "vector",
+                                        "k": 50
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                },
+                {"$limit": 3},
+                {
+                    "$project": {
+                        "content": 1,
+                        "source": 1,
+                        "score": {"$meta": "searchScore"}
+                    }
+                }
+            ]))
+            
+            logger.info(f"Hybrid search results for '{query}':")
+            for doc in results:
+                print(f"- Score: {doc['score']:.3f}")
+                print(f"  {doc['content'][:80]}...")
+                print(f"  Source: {doc['source']}\n")
+                
+        except Exception as e:
+            logger.error(f"Hybrid search failed: {str(e)}")
+
+def main():
+    # Get connection string from environment
+    atlas_uri = os.getenv("MONGODB_URI")
+    if not atlas_uri:
+        raise ValueError("Set MONGODB_URI environment variable")
+    
+    verifier = AtlasSearchVerifier(atlas_uri)
+    
+    try:
+        logger.info("🚀 Starting Atlas Search Verification")
+        
+        # Run verification tests
+        verifier.verify_basic_queries()
+        verifier.verify_text_search()
+        verifier.verify_vector_search()
+        verifier.verify_hybrid_search()
+        
+        logger.info("✅ All verification tests completed")
+        
+    except Exception as e:
+        logger.error(f"❌ Verification failed: {str(e)}")
+        raise
+
+if __name__ == "__main__":
+    main()

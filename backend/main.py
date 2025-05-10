@@ -1,5 +1,5 @@
 from typing import Dict, List, Optional
-from core.knowledge.knowledge_db import KnowledgeDatabase
+from core.knowledge.knowledge_db import KnowledgeDatabase, KnowledgeSource
 from core.knowledge.sacred_scanner import SacredScanner
 from core.knowledge.synthesizer import UniversalSynthesizer
 from core.personality.emotional_model import EmotionalModel
@@ -41,16 +41,17 @@ class AdamAI:
         self.knowledge_db = KnowledgeDatabase(
             self.mongodb_uri,
             db_name="AdamAI-KnowledgeDB")
-        
-        # Check if database is empty (updated method)
-        if self.knowledge_db.is_empty():
-            logger.info("Initializing empty database...")
-            self.knowledge_db.import_quran()
+
+        self.scanner = SacredScanner(self.knowledge_db)    
+        # Rebuild thematic index after data load
+        self.scanner._refresh_thematic_index()
+
+        if os.getenv("BACKFILL_EMBEDDINGS", "false").lower() == "true":
+            self.knowledge_db.backfill_embeddings()
 
         self.memory_db = MemoryDatabase()
         
         # Functional modules
-        self.scanner = SacredScanner(self.knowledge_db)
         self.synthesizer = UniversalSynthesizer(self.knowledge_db)
         self.emotion_detector = EmotionalModel()
         self.personality = GeneralPersonality()
@@ -65,6 +66,7 @@ class AdamAI:
         self._initialize_autonomous_learning()
 
         logger.info("AdamAI system initialized")
+
     
     def _initialize_autonomous_learning(self):
         """Start background learning processes"""
@@ -234,13 +236,3 @@ if __name__ == "__main__":
     # Initialize Adam
     adam = AdamAI()
     
-    # Example conversation
-    user_id = f"user_{uuid.uuid4()}"
-    
-    print("User: What does Islam say about forgiveness?")
-    response = adam.respond(user_id, "What does Islam say about forgiveness?")
-    print("Adam:", response)
-    
-    print("\nUser: Can you remind me about mercy?")
-    response = adam.respond(user_id, "Can you remind me about mercy?")
-    print("Adam:", response)
