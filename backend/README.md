@@ -38,10 +38,9 @@ print(response)
 ⚡ Real-time Performance	Tracks and displays response times with visual feedback
 🔄 Continuous Learning	Improves through interaction with a built-in memory system
 🛡️ Safety Filters	Built-in ethical protocols for responsible AI interactions
+</div>
 
 ## 🎥 Demo
-
-</div>
 https://github.com/Mosescod/adamOS/assets/65280027/abc12345-6789-4def-abc1-23456789abcd
 
 Tip: Try the live demo or watch the demo video
@@ -101,9 +100,10 @@ Flask
 JavaScript
 HTML5
 CSS3
+</div>
+
 
 ## 🤝 Contributing
-</div>
 We welcome contributions! Please follow these steps:
 
 Fork the repository
@@ -117,6 +117,8 @@ Push to the branch (git push origin feature/AmazingFeature)
 Open a Pull Request
 
 See our Contribution Guidelines for more details.
+
+
 
 ## 📄 License
 Distributed under the MIT License. See LICENSE for more information.
