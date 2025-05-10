@@ -30,6 +30,7 @@ Adam is an advanced conversational AI designed to engage in meaningful, context-
 response = adam.query("Explain consciousness")
 print(response)
 # "*shapes clay* Consciousness is like the river that flows..."
+```
 
 <div align="center">
 Feature	Description
@@ -118,4 +119,4 @@ GitHub Issues
 GitHub Forks
 GitHub Contributors
 
-</div> ```
+</div>
